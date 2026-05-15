@@ -23,6 +23,7 @@ A_ISIN_PLACEHOLDER: Final = "@AISIN@"
 KEYS_TO_IGNORE: Final = ["isin", "stockExchange", "quoteType", "currency", "last", "trend"]
 META_KEYS_TO_REMOVE: Final = ["isin", "ter", "quote", "latestQuote", "latestQuoteDate", "previousQuoteDate", "availableChartPeriods", "icons", "badges", "shareText"]
 KEY_52WEEK_HIGHLOW: Final = "quoteLowHigh"
+
 USER_AGENT: Final = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 STOCK_EXCHANGE_TZ: Final = ZoneInfo("Europe/Berlin")
 
@@ -117,7 +118,7 @@ class JustETFBridge:
 
 
     async def _read_all_details(self, do_quick:bool=False) -> dict:
-        _LOGGER.info(f"_read_all_deatils(): called")
+        _LOGGER.info(f"_read_all_details(): called")
         data = {}
         for isin in self.isin_list:
             # sleep for the 0.1 - 1.2 second and all following isin's...
@@ -137,18 +138,18 @@ class JustETFBridge:
                                     data[isin] = reduce_raw_values(r_json)
 
                         except json.JSONDecodeError as json_exc:
-                            _LOGGER.warning(f"_read_all_data(): JSONDecodeError while 'await res.json(): {json_exc}")
+                            _LOGGER.warning(f"_read_all_details(): JSONDecodeError while 'await res.json(): {json_exc}")
 
                         except aiohttp.ClientResponseError as io_exc:
-                            _LOGGER.warning(f"_read_all_data(): ClientResponseError while 'await res.json(): {io_exc}")
+                            _LOGGER.warning(f"_read_all_details(): ClientResponseError while 'await res.json(): {io_exc}")
 
                     else:
-                        _LOGGER.warning(f"_read_all_data(): REQ_ALL failed with http-status {res.status} {res.request_info.url}")
+                        _LOGGER.warning(f"_read_all_details(): REQ_ALL failed with http-status {res.status} {res.request_info.url}")
 
                 except aiohttp.ClientResponseError as io_exc:
-                    _LOGGER.warning(f"_read_all_data(): REQ_ALL failed cause: {io_exc}")
+                    _LOGGER.warning(f"_read_all_details(): REQ_ALL failed cause: {io_exc}")
                 except BaseException as err:
-                    _LOGGER.warning(f"_read_all_data(): BaseException: {type(err).__name__}: {err}")
+                    _LOGGER.warning(f"_read_all_details(): BaseException: {type(err).__name__}: {err}")
 
         return data
 
@@ -203,7 +204,7 @@ class JustETFBridge:
             # we expect at least every 60-second data from the websocket...
             delay_in_seconds = 60
 
-        if self._ws_LAST_UPDATE + delay_in_seconds > time():
+        if (self._ws_LAST_UPDATE + delay_in_seconds) > time():
             _LOGGER.debug(f"ws_check_last_update(): all good! [last update: {int(time()-self._ws_LAST_UPDATE)} sec ago]")
             return True
         else:
@@ -331,8 +332,7 @@ class JustETFBridge:
 
         return None
 
-    def extract_ws_message_data(self, data:dict):
-        new_data_arrived = False
+    def extract_ws_message_data(self, msg_data:dict):
         # {   "isin": "IE000UQND7H4",
         #     "timestamp": "2026-05-15T05:30:53.165Z",
         #     "trend": "N",
@@ -350,9 +350,9 @@ class JustETFBridge:
         #     "stockExchange": "gettex",
         #     "quoteType": "R"
         # }
-        isin = data.get('isin', 'unknown')
+        isin = msg_data.get("isin", "unknown")
         if isin == "unknown" or isin not in self.isin_list:
-            return new_data_arrived
+            return False
 
         self._ws_message_count[isin] += 1
 
@@ -362,13 +362,13 @@ class JustETFBridge:
             else value["raw"]
             if isinstance(value, dict) and "raw" in value
             else value
-            for key, value in data.items()
+            for key, value in msg_data.items()
             if key not in KEYS_TO_IGNORE
         }
         if self._details_data:
             if isin in self._details_data:
                 reduced[KEY_52WEEK_HIGHLOW] = self._details_data[isin][KEY_52WEEK_HIGHLOW]
 
-        self._details_data[isin] = reduced
+        self._ws_data[isin] = reduced
         _LOGGER.debug(f"{isin} - {self._ws_message_count[isin]:04d} - {reduced}")
-        return new_data_arrived
+        return True

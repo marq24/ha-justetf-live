@@ -34,10 +34,6 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-JUSTETF_CONF_ISIN = "isin"
-JUSTETF_CONF_NAME = "name"
-JUSTETF_CONF_QUANTITY = "quantity"
-JUSTETF_CONF_SCAN_INTERVAL = "scan_interval"
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 2

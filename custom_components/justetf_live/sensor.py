@@ -8,14 +8,16 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util import dt as dt_util
 
+from custom_components.justetf_live.pyjustetflive_ha.keys import Tag
 from . import JustETFDataUpdateCoordinator
 from .const import (
     DOMAIN,
+    MANUFACTURER,
     CONF_ISINS,
     CONF_ISIN_CONFIG,
     CONF_NAME,
@@ -41,11 +43,8 @@ def _get_quantity_from_config(cfg: dict) -> float:
         return 0.0
 
 
-async def async_setup_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
-) -> None:
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
+
     coordinator: JustETFDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     isins: list[str] = entry.data.get(CONF_ISINS, [])
     isin_config: dict[str, dict] = entry.data.get(CONF_ISIN_CONFIG, {})
@@ -147,18 +146,18 @@ class INGStockBaseSensor(CoordinatorEntity, SensorEntity):
     def available(self) -> bool:
         return (
             self.coordinator.last_update_success
-            and self.coordinator.data.get(self.isin, {}).get("price") is not None
+            and len(self.coordinator.data.get(self.isin, {})) > 0
         )
 
-    # @property
-    # def device_info(self):
-    #     d = self.coordinator.data.get(self.isin, {})
-    #     return {
-    #         "identifiers": {(DOMAIN, self.isin)},
-    #         "name": self._display_name or d.get("name") or self.isin,
-    #         "manufacturer": "justETF live (https://www.justetf.com)",
-    #         "model": self.isin,
-    #     }
+    @property
+    def device_info(self):
+        d = self.coordinator.data.get(self.isin, {})
+        return {
+            "identifiers": {(DOMAIN, self.isin)},
+            "name": self._display_name or d.get("name") or self.isin,
+            "manufacturer": MANUFACTURER,
+            "model": self.isin
+        }
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(self.coordinator.async_add_listener(self.async_write_ha_state))
@@ -222,30 +221,30 @@ class INGStockValueSensor(INGStockBaseSensor):
 
         return "mdi:finance"
 
-    @property
-    def extra_state_attributes(self):
-        d = self.coordinator.data.get(self.isin, {})
-        # Read current quantity from entry data (may have changed via reconfigure)
-        cfg = self.entry.data.get(CONF_ISIN_CONFIG, {}).get(self.isin, {})
-        quantity = _get_quantity_from_config(cfg)
-
-        return {
-            "name": d.get("name"),
-            "isin": d.get("isin"),
-            "currency": d.get("currency"),
-            "change_percent": d.get("change_percent"),
-            "change_absolute": d.get("change_absolute"),
-            "exchange": d.get("exchange"),
-            "last_update": d.get("last_update"),
-            "dividend_yield": d.get("dividend_yield"),
-            "dividend_per_share": d.get("dividend_per_share"),
-            "price_earnings_ratio": d.get("price_earnings_ratio"),
-            "market_capitalization": d.get("market_capitalization"),
-            "market_cap_currency": d.get("market_cap_currency"),
-            "52w_low": d.get("52w_low"),
-            "52w_high": d.get("52w_high"),
-            "quantity": quantity,
-        }
+    # @property
+    # def extra_state_attributes(self):
+    #     d = self.coordinator.data.get(self.isin, {})
+    #     # Read current quantity from entry data (may have changed via reconfigure)
+    #     cfg = self.entry.data.get(CONF_ISIN_CONFIG, {}).get(self.isin, {})
+    #     quantity = _get_quantity_from_config(cfg)
+    #
+    #     return {
+    #         "name": d.get("name"),
+    #         "isin": d.get("isin"),
+    #         "currency": d.get("currency"),
+    #         "change_percent": d.get("change_percent"),
+    #         "change_absolute": d.get("change_absolute"),
+    #         "exchange": d.get("exchange"),
+    #         "last_update": d.get("last_update"),
+    #         "dividend_yield": d.get("dividend_yield"),
+    #         "dividend_per_share": d.get("dividend_per_share"),
+    #         "price_earnings_ratio": d.get("price_earnings_ratio"),
+    #         "market_capitalization": d.get("market_capitalization"),
+    #         "market_cap_currency": d.get("market_cap_currency"),
+    #         "52w_low": d.get("52w_low"),
+    #         "52w_high": d.get("52w_high"),
+    #         "quantity": quantity,
+    #     }
 
     @property
     def native_value(self):
@@ -283,16 +282,16 @@ class INGStockTextSensor(INGStockBaseSensor):
     def icon(self) -> str | None:
         return "mdi:currency-sign"
 
-    @property
-    def extra_state_attributes(self):
-        d = self.coordinator.data.get(self.isin, {})
-        return {
-            "name": d.get("name"),
-            "isin": d.get("isin"),
-            "exchange": d.get("exchange"),
-            "currency": d.get("currency"),
-            "last_update": d.get("last_update")
-        }
+    # @property
+    # def extra_state_attributes(self):
+    #     d = self.coordinator.data.get(self.isin, {})
+    #     return {
+    #         "name": d.get("name"),
+    #         "isin": d.get("isin"),
+    #         "exchange": d.get("exchange"),
+    #         "currency": d.get("currency"),
+    #         "last_update": d.get("last_update")
+    #     }
 
     @property
     def native_value(self):
@@ -324,20 +323,20 @@ class INGStockPositionValueSensor(INGStockBaseSensor):
     def icon(self) -> str | None:
         return "mdi:briefcase"
 
-    @property
-    def extra_state_attributes(self):
-        d = self.coordinator.data.get(self.isin, {})
-        cfg = self.entry.data.get(CONF_ISIN_CONFIG, {}).get(self.isin, {})
-        quantity = _get_quantity_from_config(cfg)
-        return {
-            "name": d.get("name"),
-            "isin": d.get("isin"),
-            "exchange": d.get("exchange"),
-            "currency": d.get("currency"),
-            "last_update": d.get("last_update"),
-            "quantity": quantity,
-            "unit_price": d.get("price"),
-        }
+    # @property
+    # def extra_state_attributes(self):
+    #     d = self.coordinator.data.get(self.isin, {})
+    #     cfg = self.entry.data.get(CONF_ISIN_CONFIG, {}).get(self.isin, {})
+    #     quantity = _get_quantity_from_config(cfg)
+    #     return {
+    #         "name": d.get("name"),
+    #         "isin": d.get("isin"),
+    #         "exchange": d.get("exchange"),
+    #         "currency": d.get("currency"),
+    #         "last_update": d.get("last_update"),
+    #         "quantity": quantity,
+    #         "unit_price": d.get("price"),
+    #     }
 
     @property
     def native_value(self):
@@ -351,6 +350,7 @@ class INGStockPositionValueSensor(INGStockBaseSensor):
 
 
 class INGStockLastUpdateSensor(INGStockBaseSensor):
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_translation_key = "last_update"
     _attr_icon = "mdi:clock-outline"
@@ -367,9 +367,5 @@ class INGStockLastUpdateSensor(INGStockBaseSensor):
 
     @property
     def native_value(self):
-        raw = self.coordinator.data.get(self.isin, {}).get("last_update")
-        if not raw:
-            return None
-        dt = dt_util.parse_datetime(raw)
-        return dt_util.as_utc(dt) if dt else None
+        return self.coordinator.data.get(self.isin, {}).get(Tag.TIMESTAMP.key, None)
 

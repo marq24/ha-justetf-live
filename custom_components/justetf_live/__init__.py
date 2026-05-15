@@ -7,7 +7,7 @@ from typing import Any, Final
 from aiohttp import ClientConnectionError
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
-from homeassistant.core import HomeAssistant, Event, CoreState
+from homeassistant.core import HomeAssistant, CoreState
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import (
     device_registry as device_reg
@@ -17,7 +17,6 @@ from homeassistant.helpers.event import async_track_time_interval, async_call_la
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.loader import async_get_integration
-from homeassistant.util import slugify
 
 from custom_components.justetf_live.const import (
     DOMAIN,
@@ -144,19 +143,6 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
 
         self.name = config_entry.title
 
-        # our static device info for all sensors...
-        self._device_info_model_raw = "CloudPush"
-        self._device_info_dict = {
-            # be careful when adjusting the 'identifiers' -> since this will create probably new DeviceEntries
-            #"identifiers": {(DOMAIN, f"lan@.@{self.intg_type.lower()}@.@{self._serial}")},
-            "identifiers": {(DOMAIN, slugify(self._config_entry.title))},
-            "manufacturer": MANUFACTURER,
-            "name": self._config_entry.title,
-            "model": self._device_info_model_raw,
-            #"sw_version": sw_version
-            # hw_version
-        }
-
         # if config_entry.data.get(CONF_DELAY, False):
         #     self._ws_data_update_notify_interval_in_seconds = SCAN_INTERVAL.seconds
         # else:
@@ -173,18 +159,23 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
         if self.hass is not None:
             a_device_reg = device_reg.async_get(self.hass)
             if a_device_reg is not None:
-                device = a_device_reg.async_get_device(identifiers=self._device_info_dict["identifiers"])
-                if device:
+                devices = [
+                    device
+                    for entry in self.hass.config_entries.async_entries(DOMAIN)
+                    for device in device_reg.async_entries_for_config_entry(a_device_reg, entry.entry_id)
+                ]
+                for device in devices:
                     _LOGGER.info(f"call_later_update_device_registry(): device registry update triggered for device {device.name}")
                     if self.bridge.ws_connected and self.bridge.ws_check_last_update():
-                        f_model = f"{self._device_info_model_raw} ✅"
+                        f_model_id = f"{self.lang_map['websocket_connected']}: ✅"
                     else:
-                        f_model = f"{self._device_info_model_raw} ⛔"
+                        f_model_id = f"{self.lang_map['websocket_not_connected']}: ⛔"
 
                     a_device_reg.async_update_device(
                         device.id,
-                        model=f_model
+                        model_id=f_model_id
                     )
+
 
     async def start_watchdog(self, event=None):
         """Start websocket watchdog."""
@@ -195,10 +186,12 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
             WEBSOCKET_WATCHDOG_INTERVAL,
         )
 
+
     def stop_watchdog(self):
         if hasattr(self, "_watchdog") and self._watchdog is not None:
             self._watchdog()
             async_call_later(self.hass, 5, self.call_later_update_device_registry)
+
 
     def _check_for_ws_task_and_cancel_if_running(self):
         if self._ws_start_task is not None and not self._ws_start_task.done():
@@ -226,10 +219,6 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
                 self._check_for_ws_task_and_cancel_if_running()
                 async_call_later(self.hass, 5, self.call_later_update_device_registry)
 
-    # Callable[[Event], Any]
-    def __call__(self, evt: Event) -> bool:
-        _LOGGER.debug(f"Event arrived: {evt}")
-        return True
 
     def clear_data(self):
         _LOGGER.debug(f"clear_data called...")
@@ -237,7 +226,6 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
         self.bridge.clear_data()
         if self.data is not None:
             self.data.clear()
-        self._debounced_update_task = None
 
 
     # async def trigger_restart_delayed(self) -> None:
