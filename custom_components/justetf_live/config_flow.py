@@ -1,12 +1,9 @@
-# config_flow.py
-from __future__ import annotations
-
 import logging
 from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigFlowResult, ConfigEntryState
+from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig, SelectSelectorMode
 from homeassistant.helpers.translation import async_get_translations
@@ -29,10 +26,10 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-INGPLUS_CONF_ISIN = "isin"
-INGPLUS_CONF_NAME = "name"
-INGPLUS_CONF_QUANTITY = "quantity"
-INGPLUS_CONF_SCAN_INTERVAL = "scan_interval"
+JUSTETF_CONF_ISIN = "isin"
+JUSTETF_CONF_NAME = "name"
+JUSTETF_CONF_QUANTITY = "quantity"
+JUSTETF_CONF_SCAN_INTERVAL = "scan_interval"
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 2
@@ -57,42 +54,43 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 return await self.async_step_add_isin()
 
-        ingplus_entries = self.hass.config_entries.async_entries("ingstocksplus")
-        _LOGGER.debug(f"ingplus_entries: {ingplus_entries}")
-        _LOGGER.debug(f"ingplus_entries: {self.hass}")
-
-        if ingplus_entries and len(ingplus_entries) > 0:
-            imported_list = []
-            imported_dict = {}
-            imported_interval = None
-            for a_ingplus_entry in ingplus_entries:
-                if a_ingplus_entry.state ==  ConfigEntryState.LOADED:
-                    conf_obj = a_ingplus_entry.data
-                    if conf_obj and conf_obj.get(INGPLUS_CONF_ISIN, None) is not None:
-                        a_isin = conf_obj.get(INGPLUS_CONF_ISIN, None)
-                        a_name = conf_obj.get(INGPLUS_CONF_NAME, None)
-                        a_quantity = conf_obj.get(INGPLUS_CONF_QUANTITY, 0)
-
-                        if imported_interval is None:
-                            imported_interval = conf_obj.get(INGPLUS_CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
-
-                        if a_isin is not None:
-                            imported_list.append(a_isin)
-                            imported_dict[a_isin] = {
-                                CONF_NAME: a_name,
-                                CONF_QUANTITY: a_quantity
-                            }
-            if len(imported_list) > 0:
-                await self.async_set_unique_id(DOMAIN)
-                self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title="ING Stocks",
-                    data={
-                        CONF_SCAN_INTERVAL: imported_interval,
-                        CONF_ISINS: imported_list,
-                        CONF_ISIN_CONFIG: imported_dict,
-                    },
-                )
+        # WE DON't import any other integration ISIN's...
+        # ingstocks_entries = self.hass.config_entries.async_entries("ingstocksplus")
+        # _LOGGER.debug(f"ingstocks_entries: {ingstocks_entries}")
+        # _LOGGER.debug(f"ingstocks_entries: {self.hass}")
+        #
+        # if ingstocks_entries and len(ingstocks_entries) > 0:
+        #     imported_list = []
+        #     imported_dict = {}
+        #     imported_interval = None
+        #     for a_justetf_entry in ingstocks_entries:
+        #         if a_justetf_entry.state ==  ConfigEntryState.LOADED:
+        #             conf_obj = a_justetf_entry.data
+        #             if conf_obj and conf_obj.get(JUSTETF_CONF_ISIN, None) is not None:
+        #                 a_isin = conf_obj.get(JUSTETF_CONF_ISIN, None)
+        #                 a_name = conf_obj.get(JUSTETF_CONF_NAME, None)
+        #                 a_quantity = conf_obj.get(JUSTETF_CONF_QUANTITY, 0)
+        #
+        #                 if imported_interval is None:
+        #                     imported_interval = conf_obj.get(JUSTETF_CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        #
+        #                 if a_isin is not None:
+        #                     imported_list.append(a_isin)
+        #                     imported_dict[a_isin] = {
+        #                         CONF_NAME: a_name,
+        #                         CONF_QUANTITY: a_quantity
+        #                     }
+        #     if len(imported_list) > 0:
+        #         await self.async_set_unique_id(DOMAIN)
+        #         self._abort_if_unique_id_configured()
+        #         return self.async_create_entry(
+        #             title="ING Stocks",
+        #             data={
+        #                 CONF_SCAN_INTERVAL: imported_interval,
+        #                 CONF_ISINS: imported_list,
+        #                 CONF_ISIN_CONFIG: imported_dict,
+        #             },
+        #         )
 
         # First-time setup: ISIN + global scan_interval
         if user_input is None:
@@ -115,7 +113,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured()
 
         return self.async_create_entry(
-            title="ING Stocks",
+            title="justETF live",
             data={
                 CONF_SCAN_INTERVAL: scan_interval,
                 CONF_ISINS: [isin],

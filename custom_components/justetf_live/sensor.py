@@ -13,16 +13,15 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
+from . import JustETFDataUpdateCoordinator
 from .const import (
     DOMAIN,
     CONF_ISINS,
     CONF_ISIN_CONFIG,
     CONF_NAME,
     CONF_QUANTITY,
-    DEFAULT_QUANTITY,
-    COORDINATOR_KEY,
+    DEFAULT_QUANTITY
 )
-from .coordinator import INGStocksCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,7 +46,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coordinator: INGStocksCoordinator = hass.data[DOMAIN][COORDINATOR_KEY]
+    coordinator: JustETFDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     isins: list[str] = entry.data.get(CONF_ISINS, [])
     isin_config: dict[str, dict] = entry.data.get(CONF_ISIN_CONFIG, {})
 
@@ -133,7 +132,7 @@ class INGStockBaseSensor(CoordinatorEntity, SensorEntity):
 
     def __init__(
         self,
-        coordinator: INGStocksCoordinator,
+        coordinator: JustETFDataUpdateCoordinator,
         entry: ConfigEntry,
         isin: str,
         display_name: str,
@@ -169,7 +168,7 @@ class INGStockBaseSensor(CoordinatorEntity, SensorEntity):
 class INGStockValueSensor(INGStockBaseSensor):
     def __init__(
         self,
-        coordinator: INGStocksCoordinator,
+        coordinator: JustETFDataUpdateCoordinator,
         entry: ConfigEntry,
         isin: str,
         display_name: str,
@@ -268,7 +267,7 @@ class INGStockTextSensor(INGStockBaseSensor):
 
     def __init__(
         self,
-        coordinator: INGStocksCoordinator,
+        coordinator: JustETFDataUpdateCoordinator,
         entry: ConfigEntry,
         isin: str,
         display_name: str,
@@ -306,7 +305,7 @@ class INGStockPositionValueSensor(INGStockBaseSensor):
 
     def __init__(
         self,
-        coordinator: INGStocksCoordinator,
+        coordinator: JustETFDataUpdateCoordinator,
         entry: ConfigEntry,
         isin: str,
         display_name: str,
@@ -358,7 +357,7 @@ class INGStockLastUpdateSensor(INGStockBaseSensor):
 
     def __init__(
         self,
-        coordinator: INGStocksCoordinator,
+        coordinator: JustETFDataUpdateCoordinator,
         entry: ConfigEntry,
         isin: str,
         display_name: str,

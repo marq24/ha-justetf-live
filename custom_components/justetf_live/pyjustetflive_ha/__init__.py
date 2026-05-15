@@ -12,29 +12,7 @@ import aiohttp
 
 from custom_components.justetf_live.pyjustetflive_ha.const import (
     TRANSLATIONS,
-    INTG_TYPE,
-    CAR_VALUES,
-    FILTER_SYSTEMS,
-    FILTER_VERSIONS,
-    FILTER_MIN_STATES,
-    FILTER_IDS_ADDON,
-    FILTER_TIMES_ADDON,
-    FILTER_ALL_STATES,
-    FILTER_ALL_CONFIG,
-
-    FILTER_CONTROLER_SYSTEMS,
-    FILTER_CONTROLER_VERSIONS,
-    FILTER_CONTROLER_MIN_STATES,
-    FILTER_CONTROLER_TIMES_ADDON,
-    FILTER_CONTROLER_ALL_STATES,
-    FILTER_CONTROLER_ALL_CONFIG,
-    FILTER_CARDS_ID_CLASSIC,
-    FILTER_CARDS_ID_FWV60,
-    FILTER_CARDS_ENGY_CLASSIC,
-    FILTER_CARDS_ENGY_FWV60,
-    API_KEYS_TO_IGNORE_FROM_WS,
 )
-from custom_components.justetf_live.pyjustetflive_ha.keys import Tag, IS_TRIGGER
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 
@@ -112,8 +90,10 @@ class JustETFBridge:
         self._DETAILS_LAST_UPDATE = 0
         self._details_data = {}
 
+
     def available_fields(self) -> int:
         return len(self._ws_data) + len(self._details_data)
+
 
     def clear_data(self):
         self._ws_LAST_UPDATE = 0
@@ -233,6 +213,7 @@ class JustETFBridge:
         """Connect to WebSocket with full authentication and message handling"""
         _LOGGER.debug(f"ws_connect() STARTED...")
         self.ws_connected = False
+        self._ws_connect_start_time = time()
 
         if self.ws_url is None:
             _LOGGER.warning("ws_connect(): WebSocket URL not configured")
@@ -292,7 +273,11 @@ class JustETFBridge:
 
         max_key = max(self._ws_message_count, key=self._ws_message_count.get)
         max_value = self._ws_message_count[max_key]
-        _LOGGER.debug(f"ws_connect() ENDED - after {max_value} ({max_key}) messages")
+        duration = time() - self._ws_connect_start_time
+        hours = duration // 3600        # 2
+        minutes = (duration % 3600) // 60  # 36
+
+        _LOGGER.debug(f"ws_connect() ENDED - after {hours:02d}h {minutes:02d}m - {max_value} ({max_key}) messages - {self._ws_message_count}")
 
         try:
             await self.ws_close(ws)

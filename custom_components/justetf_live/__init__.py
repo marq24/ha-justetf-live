@@ -1,78 +1,284 @@
-from __future__ import annotations
 
 import asyncio
 import logging
 from datetime import timedelta
-from typing import Any
+from typing import Any, Final
 
+from aiohttp import ClientConnectionError
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.core import HomeAssistant, Event, CoreState
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import (
+    device_registry as device_reg
+)
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.event import async_track_time_interval, async_call_later
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.update_coordinator import UpdateFailed
+from homeassistant.loader import async_get_integration
 
-from .const import (
+from custom_components.justetf_live.const import (
     DOMAIN,
     CONF_ISINS,
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
-    COORDINATOR_KEY,
-    DELAYED_TASK_KEY,
+    STARTUP_MESSAGE,
 )
-from .coordinator import INGStocksCoordinator
+from custom_components.justetf_live.pyjustetflive_ha import TRANSLATIONS, JustETFBridge
 
 PLATFORMS = ["sensor"]
 _LOGGER = logging.getLogger(__name__)
+WEBSOCKET_WATCHDOG_INTERVAL: Final = timedelta(minutes=5, seconds=1)
 
-
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the integration (YAML hook, unused)."""
+async def async_setup(hass: HomeAssistant, config: dict):  # pylint: disable=unused-argument
+    """Set up this integration using YAML is not supported."""
     return True
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up from a config entry (single entry holding all ISINs)."""
-    isins: list[str] = entry.data.get(CONF_ISINS, [])
-    scan_interval_min = int(entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
+    if DOMAIN not in hass.data:
+        the_integration = await async_get_integration(hass, DOMAIN)
+        intg_version = the_integration.version if the_integration is not None else "UNKNOWN"
+        _LOGGER.info(STARTUP_MESSAGE % intg_version)
+        hass.data.setdefault(DOMAIN, {"manifest_version": intg_version})
 
-    coordinator = INGStocksCoordinator(
-        hass=hass,
-        update_interval=timedelta(minutes=scan_interval_min),
-    )
-    for isin in isins:
-        coordinator.isin_add(isin)
+    coordinator = JustETFDataUpdateCoordinator(hass, config_entry)
+    await coordinator.async_refresh()
+    if not coordinator.last_update_success:
+        raise ConfigEntryNotReady
 
-    hass.data.setdefault(DOMAIN, {})[COORDINATOR_KEY] = coordinator
+    hass.data[DOMAIN][config_entry.entry_id] = coordinator
+    await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
 
-    try:
-        await coordinator.async_config_entry_first_refresh()
-    except ConfigEntryNotReady:
-        raise
-    except Exception as err:
-        raise ConfigEntryNotReady(str(err)) from err
+    # right now we don't need any cleanup (yet)...
+    #asyncio.create_task(coordinator.cleanup_device_registry(hass))
 
-    _LOGGER.info(
-        "ING Stocks setup: ISINs=%s, scan_interval=%s min",
-        isins,
-        scan_interval_min,
-    )
+    # ws watchdog...
+    if hass.state is CoreState.running:
+        _LOGGER.debug(f"starting watchdog INSTANTLY")
+        await coordinator.start_watchdog()
+    else:
+        _LOGGER.debug(f"starting watchdog delayed... (when EVENT_HOMEASSISTANT_STARTED is fired)")
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, coordinator.start_watchdog)
 
-    entry.async_on_unload(entry.add_update_listener(_async_entry_updated))
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    config_entry.async_on_unload(config_entry.add_update_listener(entry_update_listener))
+    # ok we are done...
     return True
 
 
-async def _async_entry_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    await hass.config_entries.async_reload(entry.entry_id)
+# def check_unload_services(hass: HomeAssistant):
+#     active_integration_configs = hass.config_entries.async_entries(domain=DOMAIN, include_disabled=False, include_ignore=False)
+#     if active_integration_configs is not None and len(active_integration_configs) > 0:
+#         return False
+#     else:
+#         return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
+    unload_ok = await hass.config_entries.async_unload_platforms(config_entry, PLATFORMS)
+
     if unload_ok:
-        domain_data = hass.data.get(DOMAIN, {})
+        if DOMAIN in hass.data and config_entry.entry_id in hass.data[DOMAIN]:
+            coordinator: JustETFDataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
+            coordinator.stop_watchdog()
+            coordinator.clear_data()
+            hass.data[DOMAIN].pop(config_entry.entry_id)
 
-        # cancel shared delayed task
-        task: asyncio.Task[Any] | None = domain_data.pop(DELAYED_TASK_KEY, None)
-        if task and not task.done():
-            task.cancel()
+        # # ONLY remove the SERVICES if this is the LAST ACTIVE config_entry that will be unloaded!
+        # if check_unload_services(hass):
+        #     hass.services.async_remove(DOMAIN, SERVICE_SET_PV_DATA)
+        #     hass.services.async_remove(DOMAIN, SERVICE_STOP_CHARGING)
 
-        domain_data.pop(COORDINATOR_KEY, None)
     return unload_ok
+
+
+async def entry_update_listener(hass: HomeAssistant, config_entry: ConfigEntry) -> None:
+    _LOGGER.debug(f"entry_update_listener() called for entry: {config_entry.entry_id}")
+    await hass.config_entries.async_reload(config_entry.entry_id)
+
+
+# right now no device-cleanup needed (yet)
+# @staticmethod
+# async def check_device_registry(hass: HomeAssistant):
+#     _LOGGER.info(f"check device registry...")
+#     if hass is not None:
+#         a_device_reg = device_reg.async_get(hass)
+#         if a_device_reg is not None:
+#             key_list = []
+#             for a_device_entry in list(a_device_reg.devices.values()):
+#                 if hasattr(a_device_entry, "identifiers"):
+#                     ident_value = a_device_entry.identifiers
+#                     if f"{ident_value}".__contains__(DOMAIN) and len(next(iter(ident_value))) != 4:
+#                         _LOGGER.debug(f"found a OLD {DOMAIN} DeviceEntry: {a_device_entry}")
+#                         key_list.append(a_device_entry.id)
+#
+#             if len(key_list) > 0:
+#                 _LOGGER.info(f"NEED TO DELETE old {DOMAIN} DeviceEntries: {key_list}")
+#                 for a_device_entry_id in key_list:
+#                     a_device_reg.async_remove_device(device_id=a_device_entry_id)
+
+
+class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
+
+    _watchdog = None
+    _ws_start_task: asyncio.Task | None = None
+
+    def __init__(self, hass: HomeAssistant, config_entry):
+        self._config_entry = config_entry
+        self._watchdog = None
+        self._ws_start_task = None
+
+        lang = hass.config.language.lower()
+        self.bridge: JustETFBridge = JustETFBridge(
+            web_session=async_get_clientsession(hass),
+            isins=config_entry.data.get(CONF_ISINS, None),
+            lang=lang)
+
+        self.lang_map = None
+        if lang in TRANSLATIONS:
+            self.lang_map = TRANSLATIONS[lang]
+        else:
+            self.lang_map = TRANSLATIONS["en"]
+
+        self.name = config_entry.title
+
+        # our static device info for all sensors...
+        self._device_info_model_raw = f"{model_info} {comm_mode}"
+        self._device_info_dict = {
+            # be careful when adjusting the 'identifiers' -> since this will create probably new DeviceEntries
+            # and there exists also code which CLEAN all Devices that does not have 4 (four) identifier values!!
+            #"identifiers": {(DOMAIN, f"lan@.@{self.intg_type.lower()}@.@{self._serial}")},
+            "identifiers": {(
+                DOMAIN,
+                self._serial,
+                self._config_entry.data.get(CONF_HOST),
+                self._config_entry.title)},
+            "manufacturer": MANUFACTURER,
+            "name": self._config_entry.title,
+            "model": self._device_info_model_raw,
+            "sw_version": sw_version
+            # hw_version
+        }
+
+        # if config_entry.data.get(CONF_DELAY, False):
+        #     self._ws_data_update_notify_interval_in_seconds = SCAN_INTERVAL.seconds
+        # else:
+        #     # minimum update interval - no matter how fast the websocket will push the
+        #     # data, we only update HA only every second...
+        #     self._ws_data_update_notify_interval_in_seconds = 1
+        self._ws_data_update_notify_interval_in_seconds = 1
+
+        update_interval = timedelta(seconds=config_entry.data.get(CONF_SCAN_INTERVAL, 5))
+        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=update_interval)
+
+    async def call_later_update_device_registry(self, now:Any):
+        _LOGGER.debug(f"call_later_update_device_registry(): called with '{now}'")
+        if self.hass is not None:
+            a_device_reg = device_reg.async_get(self.hass)
+            if a_device_reg is not None:
+                device = a_device_reg.async_get_device(identifiers=self._device_info_dict["identifiers"])
+                if device:
+                    _LOGGER.info(f"call_later_update_device_registry(): device registry update triggered for device {device.name}")
+                    if self.bridge.ws_connected and self.bridge.ws_check_last_update():
+                        f_model = f"{self._device_info_model_raw} ✅"
+                    else:
+                        f_model = f"{self._device_info_model_raw} ⛔"
+
+                    a_device_reg.async_update_device(
+                        device.id,
+                        model=f_model
+                    )
+
+    async def start_watchdog(self, event=None):
+        """Start websocket watchdog."""
+        await self._async_watchdog_check()
+        self._watchdog = async_track_time_interval(
+            self.hass,
+            self._async_watchdog_check,
+            WEBSOCKET_WATCHDOG_INTERVAL,
+        )
+
+    def stop_watchdog(self):
+        if hasattr(self, "_watchdog") and self._watchdog is not None:
+            self._watchdog()
+            async_call_later(self.hass, 5, self.call_later_update_device_registry)
+
+    def _check_for_ws_task_and_cancel_if_running(self):
+        if self._ws_start_task is not None and not self._ws_start_task.done():
+            _LOGGER.debug(f"Watchdog: websocket connect task is still running - canceling it...")
+            try:
+                canceled = self._ws_start_task.cancel()
+                _LOGGER.debug(f"Watchdog: websocket connect task was CANCELED? {canceled}")
+            except BaseException as ex:
+                _LOGGER.info(f"Watchdog: websocket connect task cancel failed: {type(ex).__name__} - {ex}")
+
+            self._ws_start_task = None
+
+    async def _async_watchdog_check(self, *_):
+        if not self.bridge.ws_connected:
+            self._check_for_ws_task_and_cancel_if_running()
+            _LOGGER.info(f"Watchdog: websocket connect required")
+            self.bridge.ws_set_coordinator(coordinator=self)
+            self._ws_start_task = self._config_entry.async_create_background_task(self.hass, self.bridge.ws_connect(), "ws_connection")
+            if self._ws_start_task is not None:
+                _LOGGER.debug(f"Watchdog: task created {self._ws_start_task.get_coro()}")
+                async_call_later(self.hass, 10, self.call_later_update_device_registry)
+        else:
+            _LOGGER.debug(f"Watchdog: websocket is connected")
+            if not self.bridge.ws_check_last_update():
+                self._check_for_ws_task_and_cancel_if_running()
+                async_call_later(self.hass, 5, self.call_later_update_device_registry)
+
+    # Callable[[Event], Any]
+    def __call__(self, evt: Event) -> bool:
+        _LOGGER.debug(f"Event arrived: {evt}")
+        return True
+
+    def clear_data(self):
+        _LOGGER.debug(f"clear_data called...")
+        self._check_for_ws_task_and_cancel_if_running()
+        self.bridge.clear_data()
+        if self.data is not None:
+            self.data.clear()
+        self._debounced_update_task = None
+
+
+    # async def trigger_restart_delayed(self) -> None:
+    #     # Generate a random sleep time between 5 and 10 minutes (300 and 600 seconds)
+    #     random_seconds = random.uniform(300, 600)
+    #     # random_seconds = random.uniform(60, 120)
+    #     _LOGGER.info(f"trigger_restart_delayed(): Sleeping for {random_seconds:.2f} seconds...")
+    #     await asyncio.sleep(random_seconds)
+    #     _LOGGER.info(f"trigger_restart_delayed(): --- RELOAD INTEGRATION NOW ---")
+    #     await self.hass.config_entries.async_reload(self._config_entry.entry_id)
+
+
+    async def _async_update_data(self) -> dict:
+        """Update data via library."""
+        _LOGGER.debug(f"_async_update_data(): CALLED")
+        if self.bridge.ws_connected:
+            _LOGGER.debug(f"_async_update_data called (but websocket is active - no data will be requested!)")
+            return None
+        else:
+            try:
+                new_data = await self.bridge.read_all()
+                if new_data is not None and len(new_data) > 0:
+                    return new_data
+
+            except ClientConnectionError as exception:
+                self._handle_client_connection_error("_async_update_data()", exception)
+                raise UpdateFailed(f"Error while fetching data: {exception}") from exception
+            except UpdateFailed as exception:
+                raise UpdateFailed() from exception
+            except Exception as other:
+                _LOGGER.error(f"_async_update_data(): unexpected: {other}")
+                raise UpdateFailed() from other
+
+
+    # right now we don't need any cleanup (yet)...
+    # async def cleanup_device_registry(self, hass: HomeAssistant):
+    #     _LOGGER.debug(f"check device registry for orphan {DOMAIN} entries... in 20sec")
+    #     await asyncio.sleep(20)
+    #     _LOGGER.debug(f"check device registry for orphan {DOMAIN} entries NOW!")
+    #     await check_device_registry(hass=hass)
