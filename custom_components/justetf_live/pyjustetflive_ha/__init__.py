@@ -21,7 +21,7 @@ WS_BASE: Final = "api.mobile.stock-data-subscriptions.justetf.com"
 REQ_BASE: Final = "www.justetf.com/api/etfs"
 A_ISIN_PLACEHOLDER: Final = "@AISIN@"
 KEYS_TO_IGNORE: Final = ["isin", "stockExchange", "quoteType", "currency", "last", "trend"]
-META_KEYS_TO_REMOVE: Final ["isin", "ter", "quote", "latestQuote", "latestQuoteDate", "previousQuoteDate", "availableChartPeriods", "icons", "badges", "shareText"]
+META_KEYS_TO_REMOVE: Final = ["isin", "ter", "quote", "latestQuote", "latestQuoteDate", "previousQuoteDate", "availableChartPeriods", "icons", "badges", "shareText"]
 KEY_52WEEK_HIGHLOW: Final = "quoteLowHigh"
 USER_AGENT: Final = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 STOCK_EXCHANGE_TZ: Final = ZoneInfo("Europe/Berlin")
@@ -310,11 +310,11 @@ class JustETFBridge:
 
         max_key = max(self._ws_message_count, key=self._ws_message_count.get)
         max_value = self._ws_message_count[max_key]
-        duration = time() - self._ws_connect_start_time
-        hours = int(duration // 3600)        # 2
-        minutes = int((duration % 3600) // 60)  # 36
+        duration = int(time() - self._ws_connect_start_time)
+        hours = duration // 3600
+        minutes = (duration % 3600) // 60
 
-        _LOGGER.debug(f"ws_connect() ENDED - after {hours:02d}h {minutes:02d}m - {max_value} ({max_key}) messages - {self._ws_message_count}")
+        _LOGGER.debug(f"ws_connect() ENDED - after {hours:02d}h {minutes:02d}m - {max_value}: {max_key} messages - {self._ws_message_count}")
 
         try:
             await self.ws_close(ws)

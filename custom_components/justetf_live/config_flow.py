@@ -6,7 +6,12 @@ from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
-from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig, SelectSelectorMode
+from homeassistant.helpers.selector import (
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
 from homeassistant.helpers.translation import async_get_translations
 
 from custom_components.justetf_live.pyjustetflive_ha import JustETFBridge
@@ -55,44 +60,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self.async_step_select_isin()
             else:
                 return await self.async_step_add_isin()
-
-        # WE DON't import any other integration ISIN's...
-        # ingstocks_entries = self.hass.config_entries.async_entries("ingstocksplus")
-        # _LOGGER.debug(f"ingstocks_entries: {ingstocks_entries}")
-        # _LOGGER.debug(f"ingstocks_entries: {self.hass}")
-        #
-        # if ingstocks_entries and len(ingstocks_entries) > 0:
-        #     imported_list = []
-        #     imported_dict = {}
-        #     imported_interval = None
-        #     for a_justetf_entry in ingstocks_entries:
-        #         if a_justetf_entry.state ==  ConfigEntryState.LOADED:
-        #             conf_obj = a_justetf_entry.data
-        #             if conf_obj and conf_obj.get(JUSTETF_CONF_ISIN, None) is not None:
-        #                 a_isin = conf_obj.get(JUSTETF_CONF_ISIN, None)
-        #                 a_name = conf_obj.get(JUSTETF_CONF_NAME, None)
-        #                 a_quantity = conf_obj.get(JUSTETF_CONF_QUANTITY, 0)
-        #
-        #                 if imported_interval is None:
-        #                     imported_interval = conf_obj.get(JUSTETF_CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
-        #
-        #                 if a_isin is not None:
-        #                     imported_list.append(a_isin)
-        #                     imported_dict[a_isin] = {
-        #                         CONF_NAME: a_name,
-        #                         CONF_QUANTITY: a_quantity
-        #                     }
-        #     if len(imported_list) > 0:
-        #         await self.async_set_unique_id(DOMAIN)
-        #         self._abort_if_unique_id_configured()
-        #         return self.async_create_entry(
-        #             title="ING Stocks",
-        #             data={
-        #                 CONF_SCAN_INTERVAL: imported_interval,
-        #                 CONF_ISINS: imported_list,
-        #                 CONF_ISIN_CONFIG: imported_dict,
-        #             },
-        #         )
 
         # First-time setup: ISIN + global scan_interval
         if user_input is not None:
@@ -151,44 +118,38 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         isins: list[str] = list(entry_data.get(CONF_ISINS, []))
         isin_config: dict[str, dict] = entry_data.get(CONF_ISIN_CONFIG, {})
 
-        options: dict[str, str] = {}
         # Load translated action labels
         translations = await async_get_translations(
             self.hass, self.hass.config.language, "config", {DOMAIN}
         )
-        add_label = translations.get(
-            f"component.{DOMAIN}.config.step.select_isin.actions.add_new",
-            "➕ Add new ISIN",
-        )
-        options[ADD_NEW_ISIN] = add_label
-        delete_label = translations.get(
-            f"component.{DOMAIN}.config.step.select_isin.actions.delete_isin",
-            "🗑️ Delete ISIN",
-        )
-        options[DELETE_ISIN] = delete_label
 
-        # Build selectable options: "ISIN - Name" for each existing + add-new
-        edit_label = translations.get(
-            f"component.{DOMAIN}.config.step.select_isin.actions.edit_isin",
-            "✏️ edit '{label}'",
-        )
-        for isin in isins:
-            cfg = isin_config.get(isin, {})
-            label = cfg.get(CONF_NAME) or isin
-            if label != isin:
-                label = f"{isin} – {label}"
-            options[isin] = edit_label.replace('{label}', label)
+        def translate_key(key: str, fallback: str) -> str:
+            return translations.get(
+                f"component.{DOMAIN}.config.step.select_isin.actions.{key}",
+                fallback,
+            )
 
-        save_label = translations.get(
-            f"component.{DOMAIN}.config.step.select_isin.actions.save_close",
-            "💾 Save interval & close",
-        )
-        options[SAVE_AND_CLOSE] = save_label
+        def create_isin_label(isin: str) -> str:
+            name = isin_config.get(isin, {}).get(CONF_NAME)
+            return f"{isin} – {name}" if name else isin
+
+
+        edit_label = translate_key("edit_isin", "✏️ edit '{label}'")
+        options = [
+            SelectOptionDict(value=ADD_NEW_ISIN, label=translate_key("add_new", "➕ Add new ISIN")),
+            SelectOptionDict(value=DELETE_ISIN, label=translate_key("delete_isin", "🗑️ Delete ISIN")),
+            *[
+                SelectOptionDict(
+                    value=isin,
+                    label=edit_label.replace("{label}", create_isin_label(isin)),
+                )
+                for isin in isins
+            ],
+            SelectOptionDict(value=SAVE_AND_CLOSE, label=translate_key("save_close", "💾 Save interval & close")),
+        ]
 
         if user_input is None:
-            current_scan = int(
-                entry_data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
-            )
+            current_scan = int(entry_data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
             return self.async_show_form(
                 step_id="select_isin",
                 data_schema=vol.Schema({

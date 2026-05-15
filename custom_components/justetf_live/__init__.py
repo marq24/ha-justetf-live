@@ -165,7 +165,7 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
         #     self._ws_data_update_notify_interval_in_seconds = 1
         self._ws_data_update_notify_interval_in_seconds = 1
 
-        update_interval = timedelta(seconds=config_entry.data.get(CONF_SCAN_INTERVAL, 5))
+        update_interval = timedelta(minutes=config_entry.data.get(CONF_SCAN_INTERVAL, 5))
         super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=update_interval)
 
     async def call_later_update_device_registry(self, now:Any):
