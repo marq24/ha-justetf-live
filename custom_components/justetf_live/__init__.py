@@ -17,13 +17,14 @@ from homeassistant.helpers.event import async_track_time_interval, async_call_la
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.loader import async_get_integration
+from homeassistant.util import slugify
 
 from custom_components.justetf_live.const import (
     DOMAIN,
     CONF_ISINS,
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
-    STARTUP_MESSAGE,
+    STARTUP_MESSAGE, MANUFACTURER,
 )
 from custom_components.justetf_live.pyjustetflive_ha import TRANSLATIONS, JustETFBridge
 
@@ -144,20 +145,15 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
         self.name = config_entry.title
 
         # our static device info for all sensors...
-        self._device_info_model_raw = f"{model_info} {comm_mode}"
+        self._device_info_model_raw = "CloudPush"
         self._device_info_dict = {
             # be careful when adjusting the 'identifiers' -> since this will create probably new DeviceEntries
-            # and there exists also code which CLEAN all Devices that does not have 4 (four) identifier values!!
             #"identifiers": {(DOMAIN, f"lan@.@{self.intg_type.lower()}@.@{self._serial}")},
-            "identifiers": {(
-                DOMAIN,
-                self._serial,
-                self._config_entry.data.get(CONF_HOST),
-                self._config_entry.title)},
+            "identifiers": {(DOMAIN, slugify(self._config_entry.title))},
             "manufacturer": MANUFACTURER,
             "name": self._config_entry.title,
             "model": self._device_info_model_raw,
-            "sw_version": sw_version
+            #"sw_version": sw_version
             # hw_version
         }
 

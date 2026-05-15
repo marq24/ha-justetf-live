@@ -54,7 +54,8 @@
       }
     },
     "error": {
-      "isin_already_configured": "This ISIN is already configured."
+      "isin_already_configured": "This ISIN is already configured.",
+      "invalid_isin": "ISIN is invalid"
     },
     "abort": {
       "reconfigured": "Configuration updated successfully."

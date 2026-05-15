@@ -5,9 +5,11 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig, SelectSelectorMode
 from homeassistant.helpers.translation import async_get_translations
 
+from custom_components.justetf_live.pyjustetflive_ha import JustETFBridge
 from .const import (
     DOMAIN,
     CONF_ISIN,
@@ -16,6 +18,7 @@ from .const import (
     CONF_NAME,
     CONF_SCAN_INTERVAL,
     CONF_QUANTITY,
+    CONF_ETFOBJECT,
     CONF_SELECTED_ISIN,
     ADD_NEW_ISIN,
     DELETE_ISIN,
@@ -42,9 +45,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     # ------------------------------------------------------------------
     # STEP: user  (initial add or redirect to select_isin)
     # ------------------------------------------------------------------
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
         entries = self._async_current_entries()
         if entries:
             # Integration already set up → manage ISINs on existing entry
@@ -93,37 +95,43 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         #         )
 
         # First-time setup: ISIN + global scan_interval
-        if user_input is None:
-            return self.async_show_form(
-                step_id="user",
-                data_schema=vol.Schema({
-                    vol.Required(CONF_ISIN): str,
-                    vol.Optional(CONF_NAME, default=""): str,
-                    vol.Required(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(int, vol.Range(min=1, max=360)),
-                    vol.Optional(CONF_QUANTITY, default=DEFAULT_QUANTITY): vol.All(vol.Coerce(float), vol.Range(min=0)),
-                }),
-            )
+        if user_input is not None:
+            isin = user_input[CONF_ISIN].strip().upper()
+            name = (user_input.get(CONF_NAME) or "").strip()
+            scan_interval = int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+            quantity = float(user_input.get(CONF_QUANTITY, DEFAULT_QUANTITY))
 
-        isin = user_input[CONF_ISIN].strip().upper()
-        name = (user_input.get(CONF_NAME) or "").strip()
-        scan_interval = int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
-        quantity = float(user_input.get(CONF_QUANTITY, DEFAULT_QUANTITY))
+            await self.async_set_unique_id(DOMAIN)
+            self._abort_if_unique_id_configured()
 
-        await self.async_set_unique_id(DOMAIN)
-        self._abort_if_unique_id_configured()
+            is_ok, default_name, etf_obj = await self.verify_isin(isin)
+            if is_ok:
+                return self.async_create_entry(
+                    title="justETF live",
+                    data={
+                        CONF_SCAN_INTERVAL: scan_interval,
+                        CONF_ISINS: [isin],
+                        CONF_ISIN_CONFIG: {
+                            isin: {
+                                CONF_NAME: name if len(name) > 0 else default_name,
+                                CONF_QUANTITY: quantity,
+                                CONF_ETFOBJECT: etf_obj,
+                            }
+                        },
+                    },
+                )
+            else:
+                errors[CONF_ISIN] = "invalid_isin"
 
-        return self.async_create_entry(
-            title="justETF live",
-            data={
-                CONF_SCAN_INTERVAL: scan_interval,
-                CONF_ISINS: [isin],
-                CONF_ISIN_CONFIG: {
-                    isin: {
-                        CONF_NAME: name,
-                        CONF_QUANTITY: quantity
-                    }
-                },
-            },
+        return self.async_show_form(
+            step_id="user",
+            data_schema=vol.Schema({
+                vol.Required(CONF_ISIN): str,
+                vol.Optional(CONF_NAME, default=""): str,
+                vol.Required(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(int, vol.Range(min=1, max=360)),
+                vol.Optional(CONF_QUANTITY, default=DEFAULT_QUANTITY): vol.All(vol.Coerce(float), vol.Range(min=0)),
+            }),
+            errors=errors,
         )
 
     # ------------------------------------------------------------------
@@ -281,24 +289,29 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if isin in existing_isins:
                 errors[CONF_ISIN] = "isin_already_configured"
             else:
-                name = (user_input.get(CONF_NAME) or "").strip()
-                quantity = float(user_input.get(CONF_QUANTITY, DEFAULT_QUANTITY))
+                is_ok, default_name, etf_obj = await self.verify_isin(isin)
+                if is_ok:
+                    name = (user_input.get(CONF_NAME) or "").strip()
+                    quantity = float(user_input.get(CONF_QUANTITY, DEFAULT_QUANTITY))
 
-                new_data = dict(self._existing_entry.data)
-                new_data[CONF_ISINS] = existing_isins + [isin]
-                new_data[CONF_ISIN_CONFIG] = dict(new_data.get(CONF_ISIN_CONFIG, {}))
-                new_data[CONF_ISIN_CONFIG][isin] = {
-                    CONF_NAME: name,
-                    CONF_QUANTITY: quantity
-                }
+                    new_data = dict(self._existing_entry.data)
+                    new_data[CONF_ISINS] = existing_isins + [isin]
+                    new_data[CONF_ISIN_CONFIG] = dict(new_data.get(CONF_ISIN_CONFIG, {}))
+                    new_data[CONF_ISIN_CONFIG][isin] = {
+                        CONF_NAME: name if len(name) > 0 else default_name,
+                        CONF_QUANTITY: quantity,
+                        CONF_ETFOBJECT: etf_obj
+                    }
 
-                self.hass.config_entries.async_update_entry(
-                    self._existing_entry, data=new_data
-                )
-                await self.hass.config_entries.async_reload(
-                    self._existing_entry.entry_id
-                )
-                return self.async_abort(reason="reconfigured")
+                    self.hass.config_entries.async_update_entry(
+                        self._existing_entry, data=new_data
+                    )
+                    await self.hass.config_entries.async_reload(
+                        self._existing_entry.entry_id
+                    )
+                    return self.async_abort(reason="reconfigured")
+                else:
+                    errors[CONF_ISIN] = "invalid_isin"
 
         return self.async_show_form(
             step_id="add_isin",
@@ -347,3 +360,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }),
             description_placeholders={CONF_ISIN: isin},
         )
+
+    async def verify_isin(self, isin):
+        if len(isin) == 12:
+            bridge = JustETFBridge(web_session=async_create_clientsession(self.hass), isins=[isin])
+            data = await bridge._read_meta(isin)
+            _LOGGER.debug(f"Verifying ISIN {isin}: Found {data} ETF-data")
+            return data is not None and len(data) > 0, data[isin].get("name", None), data[isin]
+        return False, {}

@@ -21,6 +21,7 @@ WS_BASE: Final = "api.mobile.stock-data-subscriptions.justetf.com"
 REQ_BASE: Final = "www.justetf.com/api/etfs"
 A_ISIN_PLACEHOLDER: Final = "@AISIN@"
 KEYS_TO_IGNORE: Final = ["isin", "stockExchange", "quoteType", "currency", "last", "trend"]
+META_KEYS_TO_REMOVE: Final ["isin", "ter", "quote", "latestQuote", "latestQuoteDate", "previousQuoteDate", "availableChartPeriods", "icons", "badges", "shareText"]
 KEY_52WEEK_HIGHLOW: Final = "quoteLowHigh"
 USER_AGENT: Final = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 STOCK_EXCHANGE_TZ: Final = ZoneInfo("Europe/Berlin")
@@ -132,7 +133,8 @@ class JustETFBridge:
                         try:
                             r_json = await res.json()
                             if r_json is not None and len(r_json) > 0:
-                                data[isin] = reduce_raw_values(r_json)
+                                if r_json.get("latestQuote", None) is not None:
+                                    data[isin] = reduce_raw_values(r_json)
 
                         except json.JSONDecodeError as json_exc:
                             _LOGGER.warning(f"_read_all_data(): JSONDecodeError while 'await res.json(): {json_exc}")
@@ -147,6 +149,41 @@ class JustETFBridge:
                     _LOGGER.warning(f"_read_all_data(): REQ_ALL failed cause: {io_exc}")
                 except BaseException as err:
                     _LOGGER.warning(f"_read_all_data(): BaseException: {type(err).__name__}: {err}")
+
+        return data
+
+    async def _read_meta(self, isin) -> dict:
+        _LOGGER.info(f"_read_all_deatils(): called")
+        data = {}
+        async with self.web_session.get(self.req_url_meta.replace(A_ISIN_PLACEHOLDER, isin), headers=self.headers) as res:
+            try:
+                if 199 < res.status < 300:
+                    try:
+                        r_json = await res.json()
+                        _LOGGER.debug(f"_read_meta(): {r_json}")
+                        if r_json is not None and len(r_json) > 0:
+                            if r_json.get("etfs", None) is not None:
+                                r_json = r_json["etfs"][0]
+
+                                # removed unnecessary meta data content...
+                                for key in META_KEYS_TO_REMOVE:
+                                    r_json.pop(key, None)
+
+                                data[isin] = reduce_raw_values(r_json)
+
+                    except json.JSONDecodeError as json_exc:
+                        _LOGGER.warning(f"_read_all_data(): JSONDecodeError while 'await res.json(): {json_exc}")
+
+                    except aiohttp.ClientResponseError as io_exc:
+                        _LOGGER.warning(f"_read_all_data(): ClientResponseError while 'await res.json(): {io_exc}")
+
+                else:
+                    _LOGGER.warning(f"_read_all_data(): REQ_ALL failed with http-status {res.status} {res.request_info.url}")
+
+            except aiohttp.ClientResponseError as io_exc:
+                _LOGGER.warning(f"_read_all_data(): REQ_ALL failed cause: {io_exc}")
+            except BaseException as err:
+                _LOGGER.warning(f"_read_all_data(): BaseException: {type(err).__name__}: {err}")
 
         return data
 
@@ -274,8 +311,8 @@ class JustETFBridge:
         max_key = max(self._ws_message_count, key=self._ws_message_count.get)
         max_value = self._ws_message_count[max_key]
         duration = time() - self._ws_connect_start_time
-        hours = duration // 3600        # 2
-        minutes = (duration % 3600) // 60  # 36
+        hours = int(duration // 3600)        # 2
+        minutes = int((duration % 3600) // 60)  # 36
 
         _LOGGER.debug(f"ws_connect() ENDED - after {hours:02d}h {minutes:02d}m - {max_value} ({max_key}) messages - {self._ws_message_count}")
 

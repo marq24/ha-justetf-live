@@ -150,15 +150,15 @@ class INGStockBaseSensor(CoordinatorEntity, SensorEntity):
             and self.coordinator.data.get(self.isin, {}).get("price") is not None
         )
 
-    @property
-    def device_info(self):
-        d = self.coordinator.data.get(self.isin, {})
-        return {
-            "identifiers": {(DOMAIN, self.isin)},
-            "name": self._display_name or d.get("name") or self.isin,
-            "manufacturer": "justETF live (https://www.justetf.com)",
-            "model": self.isin,
-        }
+    # @property
+    # def device_info(self):
+    #     d = self.coordinator.data.get(self.isin, {})
+    #     return {
+    #         "identifiers": {(DOMAIN, self.isin)},
+    #         "name": self._display_name or d.get("name") or self.isin,
+    #         "manufacturer": "justETF live (https://www.justetf.com)",
+    #         "model": self.isin,
+    #     }
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(self.coordinator.async_add_listener(self.async_write_ha_state))

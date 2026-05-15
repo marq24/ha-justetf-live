@@ -53,7 +53,8 @@
       }
     },
     "error": {
-      "isin_already_configured": "Diese ISIN ist bereits konfiguriert."
+      "isin_already_configured": "Diese ISIN ist bereits konfiguriert.",
+      "invalid_isin": "Ungültige ISIN"
     },
     "abort": {
       "reconfigured": "Konfiguration erfolgreich aktualisiert."

@@ -8,6 +8,7 @@ CONF_ISIN_CONFIG = "isin_config"
 CONF_NAME = "name"
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_QUANTITY = "quantity"
+CONF_ETFOBJECT = "etfobject"
 
 
 # used internally in config flow
