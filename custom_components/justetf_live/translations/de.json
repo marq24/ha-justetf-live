@@ -1,0 +1,87 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "ING Stocks",
+        "description": "Füge eine ISIN hinzu, um Kursdaten und optionale Kennzahlen zu erhalten.",
+        "data": {
+          "isin": "ISIN",
+          "name": "Name (optional)",
+          "scan_interval": "Update-Intervall (Minuten)",
+          "quantity": "Stückzahl (Anteile)"
+        }
+      },
+      "select_isin": {
+        "title": "ISINs verwalten",
+        "description": "Wähle eine ISIN zum Bearbeiten oder füge eine neue hinzu.",
+        "data": {
+          "selected_isin": "Wähle eine Option",
+          "scan_interval": "Update-Intervall (Minuten)"
+        },
+        "actions": {
+          "add_new": "➕ Neue ISIN hinzufügen",
+          "delete_isin": "🗑️ ISIN löschen",
+          "edit_isin": "✏\uFE0F '{label}' bearbeiten",
+          "save_close": "💾 Nur 'Update-Intervall' aktualisieren & schließen"
+        }
+      },
+      "add_isin": {
+        "title": "ISIN Hinzufügen",
+        "description": "Neue ISIN zum Tracken eingeben.",
+        "data": {
+          "isin": "ISIN",
+          "name": "Name (optional)",
+          "instrument_type": "Instrument-Typ",
+          "quantity": "Stückzahl (Anteile)"
+        }
+      },
+      "edit_isin": {
+        "title": "ISIN Bearbeiten",
+        "description": "Einstellungen für ISIN bearbeiten: **{isin}**",
+        "data": {
+          "name": "Name (optional)",
+          "instrument_type": "Instrument-Typ",
+          "quantity": "Stückzahl (Anteile)"
+        }
+      },
+      "delete_isin": {
+        "title": "ISIN Löschen",
+        "description": "Wähle die zu löschende ISIN aus",
+        "data": {
+          "selected_isin": "Zu löschende ISIN auswähen"
+        }
+      }
+    },
+    "error": {
+      "isin_already_configured": "Diese ISIN ist bereits konfiguriert."
+    },
+    "abort": {
+      "reconfigured": "Konfiguration erfolgreich aktualisiert."
+    }
+  },
+  "selector": {
+    "instrument_type": {
+      "options": {
+        "auto": "Automatisch erkennen",
+        "etf": "ETF / Fonds",
+        "stock": "Aktie"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "price": { "name": "Preis" },
+      "change_percent": { "name": "Änderung %" },
+      "change_absolute": { "name": "Änderung" },
+      "last_update": { "name": "Letztes Update" },
+      "position_value": { "name": "Positionswert" },
+      "dividend_yield": { "name": "Dividendenrendite" },
+      "dividend_per_share": { "name": "Dividende je Anteil" },
+      "price_earnings_ratio": { "name": "KGV" },
+      "market_capitalization": { "name": "Marktkapitalisierung" },
+      "market_cap_currency": { "name": "Marktkap.-Währung" },
+      "week52_low": { "name": "52W Tief" },
+      "week52_high": { "name": "52W Hoch" }
+    }
+  }
+}

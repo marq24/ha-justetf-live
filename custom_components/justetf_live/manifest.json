@@ -1,0 +1,11 @@
+{
+  "domain": "justetf_live",
+  "name": "justETF.com",
+  "version": "2026.5.0",
+  "documentation": "https://github.com/marq24/ha-justetf-live",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": ["@marq24"],
+  "config_flow": true,
+  "iot_class": "cloud_push"
+}
