@@ -1,4 +1,4 @@
-# justETF.com Integration for Home Assistant
+# justETF live Integration for Home Assistant [Realtime ETF stock data via WebSocket]
 <!--
 > [!NOTE]  
 > Highlights information that users should take into account, even when skimming.
@@ -70,7 +70,7 @@ Just click the following Button to start the configuration automatically (for th
 
 Use the following steps for a manual configuration by adding the custom integration using the web interface and follow instruction on screen:
 
-- Go to `Configuration -> Integrations` and add "_justETF.com - Live ETF stock data via WebSocket_" integration
+- Go to `Configuration -> Integrations` and add "_justETF live - Realtime ETF stock data via WebSocket_" integration
 
 ### Common further steps
 

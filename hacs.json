@@ -1,5 +1,5 @@
 {
-  "name": "justETF live - A Home Assistant Integration to fetch ETF live data from justETF.com via WebSocket",
+  "name": "justETF live [Realtime ETF stock data via WebSocket]",
   "content_in_root": false,
   "render_readme": true,
   "homeassistant": "2024.1.0"

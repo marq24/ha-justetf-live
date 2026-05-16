@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "justETF live Integration",
+        "title": "justETF live - Realtime ETF stock data via WebSocket",
         "description": "Add your first ISIN to track price and optional key figures.",
         "data": {
           "isin": "ISIN",

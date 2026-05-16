@@ -1,6 +1,6 @@
 {
   "domain": "justetf_live",
-  "name": "justETF.com - Live ETF stock data via WebSocket",
+  "name": "justETF live - Realtime ETF stock data via WebSocket (provided by https://www.justetf.com)",
   "version": "2026.5.0",
   "documentation": "https://github.com/marq24/ha-justetf-live",
   "requirements": [],
