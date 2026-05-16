@@ -25,7 +25,7 @@
 __Enjoying this integration?__ ⭐ Star the repo!
 
 [hacs]: https://hacs.xyz
-[hacsbadge]: https://img.shields.io/badge/HACS-default-orange.svg?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=ccc
+[hacsbadge]: https://img.shields.io/badge/HACS-custom-orange.svg?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=ccc
 
 [hainstall]: https://my.home-assistant.io/redirect/config_flow_start/?domain=justetf_live
 [hainstallbadge]: https://img.shields.io/badge/dynamic/json?style=for-the-badge&logo=home-assistant&logoColor=ccc&label=usage&suffix=%20installs&cacheSeconds=15600&url=https://analytics.home-assistant.io/custom_integrations.json&query=$.justetf_live.total
