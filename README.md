@@ -35,7 +35,7 @@ Please be aware that we are developing this integration to the best of our knowl
 > 2. Go to **Integrations**
 > 3. Click **⋮ → Custom repositories**
 > 4. Add:</br>
-    - **Repository:** `https://github.com/marq24/ha-ingstocks`</br>
+    - **Repository:** `https://github.com/marq24/ha-justetf-live`</br>
     - **Type:** Integration
 
 
