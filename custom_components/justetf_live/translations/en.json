@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "ING Stocks",
+        "title": "justETF live Integration",
         "description": "Add your first ISIN to track price and optional key figures.",
         "data": {
           "isin": "ISIN",
@@ -72,18 +72,15 @@
   },
   "entity": {
     "sensor": {
-      "price": { "name": "Price" },
-      "change_percent": { "name": "Change %" },
-      "change_absolute": { "name": "Change" },
-      "last_update": { "name": "Last update" },
-      "position_value": { "name": "Position value" },
-      "dividend_yield": { "name": "Dividend yield" },
-      "dividend_per_share": { "name": "Dividend per share" },
-      "price_earnings_ratio": { "name": "P/E ratio" },
-      "market_capitalization": { "name": "Market capitalization" },
-      "market_cap_currency": { "name": "Market cap currency" },
-      "week52_low": { "name": "52W low" },
-      "week52_high": { "name": "52W high" }
+      "dtdprc": { "name": "Change %" },
+      "dtdamt": { "name": "Change" },
+      "mid":  { "name": "Price" },
+      "bid":  { "name": "Price (bid)" },
+      "ask":  { "name": "Price (ask)" },
+      "position_value": { "name": "Positions value" },
+      "quote52weeklow": { "name": "52W low" },
+      "quote52weekhigh": { "name": "52W high" },
+      "timestamp": { "name": "Last update" }
     }
   }
 }

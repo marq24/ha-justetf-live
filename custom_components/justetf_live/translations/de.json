@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "ING Stocks",
+        "title": "justETF live Integration",
         "description": "Füge eine ISIN hinzu, um Kursdaten und optionale Kennzahlen zu erhalten.",
         "data": {
           "isin": "ISIN",
@@ -48,7 +48,7 @@
         "title": "ISIN Löschen",
         "description": "Wähle die zu löschende ISIN aus",
         "data": {
-          "selected_isin": "Zu löschende ISIN auswähen"
+          "selected_isin": "Zu löschende ISIN auswählen"
         }
       }
     },
@@ -60,29 +60,17 @@
       "reconfigured": "Konfiguration erfolgreich aktualisiert."
     }
   },
-  "selector": {
-    "instrument_type": {
-      "options": {
-        "auto": "Automatisch erkennen",
-        "etf": "ETF / Fonds",
-        "stock": "Aktie"
-      }
-    }
-  },
   "entity": {
     "sensor": {
-      "price": { "name": "Preis" },
-      "change_percent": { "name": "Änderung %" },
-      "change_absolute": { "name": "Änderung" },
-      "last_update": { "name": "Letztes Update" },
+      "mid":  { "name": "Preis" },
+      "bid":  { "name": "Preis (Geldkurs)" },
+      "ask":  { "name": "Preis (Briefkurs)" },
+      "dtdprc": { "name": "Änderung %" },
+      "dtdamt": { "name": "Änderung" },
       "position_value": { "name": "Positionswert" },
-      "dividend_yield": { "name": "Dividendenrendite" },
-      "dividend_per_share": { "name": "Dividende je Anteil" },
-      "price_earnings_ratio": { "name": "KGV" },
-      "market_capitalization": { "name": "Marktkapitalisierung" },
-      "market_cap_currency": { "name": "Marktkap.-Währung" },
-      "week52_low": { "name": "52W Tief" },
-      "week52_high": { "name": "52W Hoch" }
+      "quote52weeklow": { "name": "52W Tief" },
+      "quote52weekhigh": { "name": "52W Hoch" },
+      "timestamp": { "name": "Letztes Update" }
     }
   }
 }

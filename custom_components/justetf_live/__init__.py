@@ -204,6 +204,7 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
         """Start websocket watchdog."""
         _LOGGER.debug("start_watchdog() initializing the watchdogs - should only happen once!")
 
+        # when we start the watchdog - we must for sure establish a websocket connection...
         await self._start_ws_connection()
 
         # starting our INTERVAL-based watchdog...
