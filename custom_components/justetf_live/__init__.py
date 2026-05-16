@@ -1,7 +1,8 @@
 
 import asyncio
 import logging
-from datetime import timedelta
+import random
+from datetime import datetime, timedelta
 from typing import Any, Final
 
 from aiohttp import ClientConnectionError
@@ -13,7 +14,7 @@ from homeassistant.helpers import (
     device_registry as device_reg
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.event import async_track_time_interval, async_call_later
+from homeassistant.helpers.event import async_track_time_interval, async_track_utc_time_change, async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.loader import async_get_integration
@@ -25,11 +26,13 @@ from custom_components.justetf_live.const import (
     DEFAULT_SCAN_INTERVAL,
     STARTUP_MESSAGE, MANUFACTURER,
 )
-from custom_components.justetf_live.pyjustetflive_ha import TRANSLATIONS, JustETFBridge
+from custom_components.justetf_live.pyjustetflive_ha import JustETFBridge, STOCK_EXCHANGE_TZ
+from custom_components.justetf_live.pyjustetflive_ha.const import TRANSLATIONS
 
 PLATFORMS = ["sensor"]
 _LOGGER = logging.getLogger(__name__)
-WEBSOCKET_WATCHDOG_INTERVAL: Final = timedelta(minutes=5, seconds=1)
+WEBSOCKET_WATCHDOG_INTERVAL_DAY: Final = timedelta(minutes=0, seconds=30)
+WEBSOCKET_WATCHDOG_INTERVAL_NIGHT: Final = timedelta(hours=1, minutes=0, seconds=0)
 
 async def async_setup(hass: HomeAssistant, config: dict):  # pylint: disable=unused-argument
     """Set up this integration using YAML is not supported."""
@@ -98,6 +101,19 @@ async def entry_update_listener(hass: HomeAssistant, config_entry: ConfigEntry) 
     await hass.config_entries.async_reload(config_entry.entry_id)
 
 
+async def async_remove_config_entry_device(hass: HomeAssistant, config_entry: ConfigEntry, device_entry: DeviceEntry) -> bool:
+    coordinator = hass.data[DOMAIN][config_entry.entry_id]
+    # Only handle devices belonging to this integration/config entry
+    if config_entry.entry_id not in device_entry.config_entries:
+        return False
+
+    if not any(identifier[0] == DOMAIN for identifier in device_entry.identifiers):
+        return False
+
+    # Allow removing dynamic child devices like vehicles/loadpoints.
+    return coordinator is not None
+
+
 # right now no device-cleanup needed (yet)
 # @staticmethod
 # async def check_device_registry(hass: HomeAssistant):
@@ -122,11 +138,17 @@ async def entry_update_listener(hass: HomeAssistant, config_entry: ConfigEntry) 
 class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
 
     _watchdog = None
+    _watchdog_time = None
+    _watchdog_5min = None
+    _active_watchdog_interval = None
     _ws_start_task: asyncio.Task | None = None
 
     def __init__(self, hass: HomeAssistant, config_entry):
         self._config_entry = config_entry
         self._watchdog = None
+        self._watchdog_time = None
+        self._watchdog_5min = None
+        self._active_watchdog_interval = None
         self._ws_start_task = None
 
         lang = hass.config.language.lower()
@@ -158,6 +180,7 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.debug(f"call_later_update_device_registry(): called with '{now}'")
         if self.hass is not None:
             a_device_reg = device_reg.async_get(self.hass)
+            is_connected = self.bridge.ws_connected and self.bridge.ws_check_last_update()
             if a_device_reg is not None:
                 devices = [
                     device
@@ -165,8 +188,8 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
                     for device in device_reg.async_entries_for_config_entry(a_device_reg, entry.entry_id)
                 ]
                 for device in devices:
-                    _LOGGER.info(f"call_later_update_device_registry(): device registry update triggered for device {device.name}")
-                    if self.bridge.ws_connected and self.bridge.ws_check_last_update():
+                    _LOGGER.info(f"call_later_update_device_registry(): device registry update triggered for device {device.name} {'✅' if is_connected else '⛔'}")
+                    if is_connected:
                         f_model_id = f"{self.lang_map['websocket_connected']}: ✅"
                     else:
                         f_model_id = f"{self.lang_map['websocket_not_connected']}: ⛔"
@@ -179,45 +202,112 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def start_watchdog(self, event=None):
         """Start websocket watchdog."""
-        await self._async_watchdog_check()
+        _LOGGER.debug("start_watchdog() initializing the watchdogs - should only happen once!")
+
+        await self._start_ws_connection()
+
+        # starting our INTERVAL-based watchdog...
+        if self.bridge.is_out_of_stock_exchange_operating_hours():
+            self._set_watchdog_interval(WEBSOCKET_WATCHDOG_INTERVAL_NIGHT)
+        else:
+            self._set_watchdog_interval(WEBSOCKET_WATCHDOG_INTERVAL_DAY)
+
+        # make sure that every workday day at ~7:30 (Berlin TZ) we ensure that the websocket is up and running
+        from datetime import timezone, time
+        berlin_7 = datetime.combine(
+            datetime.now(STOCK_EXCHANGE_TZ).date(),
+            time(7, 0),
+            tzinfo=STOCK_EXCHANGE_TZ,
+        )
+        self._watchdog_time = async_track_utc_time_change(
+            self.hass,
+            self._async_watchdog_check,
+            hour = berlin_7.astimezone(timezone.utc).hour,
+            minute = random.randint(27, 29),
+            second = random.randint(0, 59)
+        )
+
+        # run a check if we should set a new watchdog interval every 5 minutes
+        self._watchdog_5min = async_track_utc_time_change(
+            self.hass,
+            self._async_check_watchdog_interval,
+            minute=range(0, 60, 5),
+            second = random.randint(10, 49)
+        )
+
+    async def _async_check_watchdog_interval(self, *_):
+        _LOGGER.debug("_async_check_watchdog_interval()")
+        if self.bridge.is_out_of_stock_exchange_operating_hours():
+            if self._active_watchdog_interval != WEBSOCKET_WATCHDOG_INTERVAL_NIGHT:
+                self._set_watchdog_interval(WEBSOCKET_WATCHDOG_INTERVAL_NIGHT)
+        else:
+            if self._active_watchdog_interval != WEBSOCKET_WATCHDOG_INTERVAL_DAY:
+                self._set_watchdog_interval(WEBSOCKET_WATCHDOG_INTERVAL_DAY)
+
+
+    def _set_watchdog_interval(self, interval: timedelta) -> None:
+        _LOGGER.debug(f"_set_watchdog_interval(): {interval}")
+        if hasattr(self, "_watchdog") and self._watchdog is not None:
+            self._watchdog()
+            self._watchdog = None
+
+        self._active_watchdog_interval = interval
         self._watchdog = async_track_time_interval(
             self.hass,
             self._async_watchdog_check,
-            WEBSOCKET_WATCHDOG_INTERVAL,
+            interval,
+            cancel_on_shutdown=True,
         )
 
 
     def stop_watchdog(self):
+        if hasattr(self, "_watchdog_time") and self._watchdog_time is not None:
+            self._watchdog_time()
+            self._watchdog_time = None
+
+        if hasattr(self, "_watchdog_5min") and self._watchdog_5min is not None:
+            self._watchdog_5min()
+            self._watchdog_5min = None
+
         if hasattr(self, "_watchdog") and self._watchdog is not None:
             self._watchdog()
+            self._watchdog = None
             async_call_later(self.hass, 5, self.call_later_update_device_registry)
 
 
     def _check_for_ws_task_and_cancel_if_running(self):
         if self._ws_start_task is not None and not self._ws_start_task.done():
-            _LOGGER.debug(f"Watchdog: websocket connect task is still running - canceling it...")
+            _LOGGER.debug(f"Watchdog: WebSocket connect task is still running - canceling it...")
             try:
                 canceled = self._ws_start_task.cancel()
-                _LOGGER.debug(f"Watchdog: websocket connect task was CANCELED? {canceled}")
+                _LOGGER.debug(f"Watchdog: WebSocket connect task was CANCELED? {canceled}")
             except BaseException as ex:
-                _LOGGER.info(f"Watchdog: websocket connect task cancel failed: {type(ex).__name__} - {ex}")
+                _LOGGER.info(f"Watchdog: WebSocket connect task cancel failed: {type(ex).__name__} - {ex}")
 
             self._ws_start_task = None
+
 
     async def _async_watchdog_check(self, *_):
         if not self.bridge.ws_connected:
             self._check_for_ws_task_and_cancel_if_running()
-            _LOGGER.info(f"Watchdog: websocket connect required")
-            self.bridge.ws_set_coordinator(coordinator=self)
-            self._ws_start_task = self._config_entry.async_create_background_task(self.hass, self.bridge.ws_connect(), "ws_connection")
-            if self._ws_start_task is not None:
-                _LOGGER.debug(f"Watchdog: task created {self._ws_start_task.get_coro()}")
-                async_call_later(self.hass, 10, self.call_later_update_device_registry)
+            if self.bridge.is_out_of_stock_exchange_operating_hours():
+                _LOGGER.debug(f"Watchdog: WebSocket is not running, but the stock market is closed -> no call for action, all is fine")
+            else:
+                _LOGGER.info(f"Watchdog: WebSocket connect required")
+                await self._start_ws_connection()
         else:
-            _LOGGER.debug(f"Watchdog: websocket is connected")
+            _LOGGER.debug(f"Watchdog: WebSocket is connected")
             if not self.bridge.ws_check_last_update():
                 self._check_for_ws_task_and_cancel_if_running()
                 async_call_later(self.hass, 5, self.call_later_update_device_registry)
+
+
+    async def _start_ws_connection(self):
+        self.bridge.ws_set_coordinator(coordinator=self)
+        self._ws_start_task = self._config_entry.async_create_background_task(self.hass, self.bridge.ws_connect(), "ws_connection")
+        if self._ws_start_task is not None:
+            _LOGGER.debug(f"Watchdog: task created {self._ws_start_task.get_coro()}")
+            async_call_later(self.hass, 10, self.call_later_update_device_registry)
 
 
     def clear_data(self):
@@ -240,9 +330,9 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self) -> dict:
         """Update data via library."""
-        _LOGGER.debug(f"_async_update_data(): CALLED")
+        _LOGGER.debug(f"_async_update_data()")
         if self.bridge.ws_connected:
-            _LOGGER.debug(f"_async_update_data called (but websocket is active - no data will be requested!)")
+            _LOGGER.debug(f"_async_update_data(): called (but WebSocket is active - no data will be requested!)")
             return None
         else:
             try:

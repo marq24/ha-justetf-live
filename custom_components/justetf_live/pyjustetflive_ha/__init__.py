@@ -28,18 +28,6 @@ USER_AGENT: Final = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
 STOCK_EXCHANGE_TZ: Final = ZoneInfo("Europe/Berlin")
 
 
-def is_beaver_hours():
-    exchange_now = datetime.now(STOCK_EXCHANGE_TZ)
-    is_quiet = (
-            exchange_now.weekday() >= 5  # 5=Saturday, 6=Sunday
-            or exchange_now.hour > 22
-            or (exchange_now.hour == 22 and exchange_now.minute >= 30)
-            or exchange_now.hour < 7
-            or (exchange_now.hour == 7 and exchange_now.minute < 30)
-    )
-    return is_quiet
-
-
 def reduce_raw_values(value):
     if isinstance(value, dict):
         if "raw" in value:
@@ -197,19 +185,16 @@ class JustETFBridge:
         self._ws_debounced_update_task = None
 
     def ws_check_last_update(self) -> bool:
-        if is_beaver_hours():
-            # in quiet hours, we expect at least every 60-minute data
-            delay_in_seconds = 60 * 60
-        else:
-            # we expect at least every 60-second data from the websocket...
-            delay_in_seconds = 60
-
-        if (self._ws_LAST_UPDATE + delay_in_seconds) > time():
+        # we expect at least every 60-second data from the websocket...
+        if (self._ws_LAST_UPDATE + 60) > time():
             _LOGGER.debug(f"ws_check_last_update(): all good! [last update: {int(time()-self._ws_LAST_UPDATE)} sec ago]")
             return True
         else:
-            _LOGGER.info(f"ws_check_last_update(): force reconnect...")
-            return False
+            if self.is_out_of_stock_exchange_operating_hours():
+                return False
+            else:
+                _LOGGER.info(f"ws_check_last_update(): force reconnect...")
+                return False
 
     async def ws_close(self, ws):
         """Close the WebSocket connection cleanly."""
@@ -317,6 +302,18 @@ class JustETFBridge:
 
         _LOGGER.debug(f"ws_connect() ENDED - after {hours:02d}h {minutes:02d}m - {max_value}: {max_key} messages - {self._ws_message_count}")
 
+        if False:
+            if hasattr(self, "coordinator") and self.coordinator is not None:
+                async def launch_ws_check():
+                    _LOGGER.info(f"ws_connect(): will launch_ws_check()...")
+                    await asyncio.sleep(2)
+                    self.coordinator._async_watchdog_check()
+
+                asyncio.create_task(launch_ws_check())
+            else:
+                _LOGGER.info(f"ws_connect(): coordinator is None or not initialized")
+                pass
+
         try:
             await self.ws_close(ws)
         except UnboundLocalError:
@@ -372,3 +369,16 @@ class JustETFBridge:
         self._ws_data[isin] = reduced
         _LOGGER.debug(f"{isin} - {self._ws_message_count[isin]:04d} - {reduced}")
         return True
+
+    def is_out_of_stock_exchange_operating_hours(self):
+        exchange_now = datetime.now(STOCK_EXCHANGE_TZ)
+        is_quiet = (
+                exchange_now.weekday() >= 5  # 5=Saturday, 6=Sunday
+                or exchange_now.hour >= 24
+                # some stock exchanges are open till 22:59 (Berlin TZ)
+                or (exchange_now.hour == 23 and exchange_now.minute >= 5)
+                or exchange_now.hour <= 6
+                # trading starts at 7:30 (Berlin TZ)
+                or (exchange_now.hour == 7 and exchange_now.minute <= 25)
+        )
+        return is_quiet
