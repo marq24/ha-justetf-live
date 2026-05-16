@@ -281,13 +281,15 @@ class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
     @property
     def icon(self) -> str | None:
         if self.tag in (Tag.DTDPRC, Tag.DTDAMT, Tag.DTDDEC):
-            v = self.coordinator.data.get(self.isin, {}).get(self.tag.key, None)
-            if v is None:
-                return "mdi:trending-neutral"
-            if v > 0:
-                return "mdi:trending-up"
-            if v < 0:
-                return "mdi:trending-down"
+            if self.coordinator.data is not None:
+                v = self.coordinator.data.get(self.isin, {}).get(self.tag.key, None)
+                if v is None:
+                    return "mdi:trending-neutral"
+                if v > 0:
+                    return "mdi:trending-up"
+                if v < 0:
+                    return "mdi:trending-down"
+
             return "mdi:trending-neutral"
         else:
             return super().icon
