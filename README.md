@@ -19,6 +19,64 @@
 [![hacs_badge][hacsbadge]][hacs] [![hainstall][hainstallbadge]][hainstall] [![Wero][werobadge]][wero] [![wise][wisebadge]][wise] [![Revolut][revolutbadge]][revolut] [![PayPal][paypalbadge]][paypal] [![github][ghsbadge]][ghs] [![BuyMeCoffee][buymecoffeebadge]][buymecoffee]
 
 
+## Disclaimer
+
+Please be aware that we are developing this integration to the best of our knowledge and belief, but can't give a guarantee. Therefore, use this integration **at your own risk**.
+
+## Step I: Install the integration
+
+### Option 1: via HACS
+
+[![Open your Home Assistant instance and adding repository to HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=marq24&repository=ha-justetf-live&category=integration)
+
+> **_or_**&nbsp;&nbsp;you **need to add** this custom repository to HACS via:
+>
+> 1. Open **HACS**
+> 2. Go to **Integrations**
+> 3. Click **⋮ → Custom repositories**
+> 4. Add:</br>
+    - **Repository:** `https://github.com/marq24/ha-ingstocks`</br>
+    - **Type:** Integration
+
+
+1. Use the search bar and start typing `justETF live` ...
+2. Use the 3-dots at the right of the list entry (not at the top bar!) to download/install the custom integration — the latest release version is automatically selected. Only select a different version if you have specific reasons.
+3. After you press download and the process has completed, you must __Restart Home Assistant__ to install all dependencies
+4. Setup the evcc custom integration as described below (see _Step II: Adding or enabling the integration_)
+
+
+### Option 2: manual steps
+
+1. Using the tool of choice, open the directory (folder) for your HA configuration (where you find `configuration.yaml`).
+2. If you do not have a `custom_components` directory (folder) there, you need to create it.
+3. In the `custom_components` directory (folder) create a new folder called `justetf_live`.
+4. Download _all_ the files from the `custom_components/justetf_live/` directory (folder) in this repository.
+5. Place the files you downloaded in the new directory (folder) you created.
+6. Restart Home Assistant
+7. Setup the _justETF live_ integration as described below (see _Step II: Adding or enabling the integration_)
+
+## Step II: Adding or enabling the integration
+
+__You must have installed the integration (manually or via HACS before)!__
+
+### Option 1: My Home Assistant (2021.3+)
+
+Just click the following Button to start the configuration automatically (for the rest see _Option 2: Manually step by step_):
+
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=justetf_live)
+
+
+### Option 2: Manually — step by step
+
+Use the following steps for a manual configuration by adding the custom integration using the web interface and follow instruction on screen:
+
+- Go to `Configuration -> Integrations` and add "_justETF.com - Live ETF stock data via WebSocket_" integration
+
+### Common further steps
+
+To track a new ETF, you need to specify the **ISIN** of the ETF. Use the https://justetf.com/ website to find the ISIN of the ETF you want to track.
+
+Please note that some of the available sensors are __not__ enabled by default.
 
 ---
 
