@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import random
-from collections import ChainMap
 from datetime import datetime, timezone
 from time import time
 from typing import Final
@@ -82,7 +81,7 @@ class JustETFBridge:
 
 
     def available_fields(self) -> int:
-        return len(self._ws_data) + len(self._details_data)
+        return len(self._ws_data)
 
 
     def clear_data(self):
@@ -102,7 +101,12 @@ class JustETFBridge:
             self._details_data = await self._read_all_details()
             self._DETAILS_LAST_UPDATE = now_time
 
-        return ChainMap(self._ws_data, self._details_data)
+            # need to insert the 52week high/low data into the details data...
+            for isin in self._details_data:
+                if isin in self._ws_data:
+                    self._ws_data[isin][KEY_52WEEK_HIGHLOW] = self._details_data[isin][KEY_52WEEK_HIGHLOW]
+
+        return self._ws_data
 
 
     async def _read_all_details(self, do_quick:bool=False) -> dict:
@@ -222,7 +226,7 @@ class JustETFBridge:
                 current_time = time()
                 if current_time - self._ws_LAST_NEW_DATA_NOTIFY >= self.coordinator._ws_data_update_notify_interval_in_seconds:
                     self._ws_LAST_NEW_DATA_NOTIFY = current_time
-                    self.coordinator.async_set_updated_data(ChainMap(self._ws_data))
+                    self.coordinator.async_set_updated_data(self._ws_data)
                 else:
                     _LOGGER.debug(f"_ws_debounce_coordinator_update(): skip 'self.coordinator.async_set_updated_data'")
                     pass
@@ -323,7 +327,6 @@ class JustETFBridge:
 
         self.ws_connected = False
         self._ws_connection = None
-        self._ws_data = {}
         self._ws_LAST_UPDATE = 0
         self._ws_LAST_NEW_DATA_NOTIFY = 0
 
@@ -362,6 +365,8 @@ class JustETFBridge:
             for key, value in msg_data.items()
             if key not in KEYS_TO_IGNORE
         }
+
+        # setting the 'KEY_52WEEK_HIGHLOW' data to the self._ws_data
         if self._details_data:
             if isin in self._details_data:
                 reduced[KEY_52WEEK_HIGHLOW] = self._details_data[isin][KEY_52WEEK_HIGHLOW]

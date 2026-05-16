@@ -334,7 +334,7 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.debug(f"_async_update_data()")
         if self.bridge.ws_connected:
             _LOGGER.debug(f"_async_update_data(): called (but WebSocket is active - no data will be requested!)")
-            return None
+            return self.bridge._ws_data
         else:
             try:
                 new_data = await self.bridge.read_all()
