@@ -246,7 +246,7 @@ class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
     @property
     def available(self):
         """Return True if the entity is available."""
-        return self.coordinator.last_update_success and self.isin in self.coordinator.data
+        return self.coordinator.last_update_success and self.coordinator.data is not None and self.isin in self.coordinator.data
 
     @property
     def unique_id(self):
@@ -256,22 +256,23 @@ class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
     @property
     def native_value(self):
         try:
-            data = self.coordinator.data.get(self.isin, {})
-            if self.tag.keys is not None:
-                key1 = self.tag.keys[0]
-                key2 = self.tag.keys[1]
-                return data.get(key1, {}).get(key2, None)
-            else:
-                if self.tag == Tag.POSITIONVALUE:
-                    # to calculate position value, we need the mid-price...
-                    val = data.get(Tag.MID.key, None)
+            if self.coordinator.data is not None:
+                data = self.coordinator.data.get(self.isin, {})
+                if self.tag.keys is not None:
+                    key1 = self.tag.keys[0]
+                    key2 = self.tag.keys[1]
+                    return data.get(key1, {}).get(key2, None)
                 else:
-                    val = data.get(self.tag.key, None)
+                    if self.tag == Tag.POSITIONVALUE:
+                        # to calculate position value, we need the mid-price...
+                        val = data.get(Tag.MID.key, None)
+                    else:
+                        val = data.get(self.tag.key, None)
 
-                if val is not None and self.entity_description.quantity is not None:
-                    val = float(val) * self.entity_description.quantity
+                    if val is not None and self.entity_description.quantity is not None:
+                        val = float(val) * self.entity_description.quantity
 
-                return val
+                    return val
 
         except BaseException as ex:
             _LOGGER.info(f"Error fetching native value for {self.tag.key} with isin {self.isin}: {type(ex).__name__} - {ex}")
