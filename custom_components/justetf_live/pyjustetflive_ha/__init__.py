@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import random
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from time import time
 from typing import Final
 from zoneinfo import ZoneInfo
@@ -69,14 +69,14 @@ class JustETFBridge:
         self.isin_list = isins
 
         self.ws_connected = False
+        self._ws_LAST_UPDATE = 0
+        self._ws_LAST_NEW_DATA_NOTIFY = 0
         self._ws_data = {}
         self._ws_connection = None
         self._ws_message_count = {isin: 0 for isin in self.isin_list}
         self._ws_debounced_update_task = None
-        self._ws_LAST_UPDATE = 0
-        self._ws_LAST_NEW_DATA_NOTIFY = 0
-
         self._DETAILS_LAST_UPDATE = 0
+        self._DETAILS_RUN_DATE: date = datetime.now(timezone.utc).date()
         self._details_data = {}
 
 
@@ -89,17 +89,24 @@ class JustETFBridge:
         self._ws_LAST_NEW_DATA_NOTIFY = 0
         self._ws_data = {}
         self._DETAILS_LAST_UPDATE = 0
+        self._DETAILS_RUN_DATE = None
         self._details_data = {}
 
 
     async def read_all(self) -> dict:
-        now_data = datetime.now(timezone.utc)
+        now_date = datetime.now(timezone.utc).date()
         now_time = time()
+
+        is_next_day = (now_date != self._DETAILS_RUN_DATE)
+
         # 1 day = 24h * 60min * 60sec = 86400 sec
         # 1 hour = 60min * 60sec = 3600 sec
-        if (now_data.hour == 0 and now_data.minute > random.randint(0, 59)) or ((self._DETAILS_LAST_UPDATE + 86400 + 3600)  < now_time):
+        are_24_hours_passed = ((self._DETAILS_LAST_UPDATE + 86400 + random.randint(-3600, 3600))  < now_time)
+
+        if is_next_day or are_24_hours_passed:
             self._details_data = await self._read_all_details()
             self._DETAILS_LAST_UPDATE = now_time
+            self._DETAILS_RUN_DATE = now_date
 
             # need to insert the 52week high/low data into the details data...
             for isin in self._details_data:
