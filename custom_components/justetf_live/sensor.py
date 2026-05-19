@@ -265,7 +265,8 @@ class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
                 else:
                     if self.tag == Tag.POSITIONVALUE:
                         # to calculate position value, we need the mid-price...
-                        val = data.get(Tag.MID.key, None)
+                        #val = data.get(Tag.MID.key, None)
+                        val = data.get(Tag.BID.key, None)
                     else:
                         val = data.get(self.tag.key, None)
 
