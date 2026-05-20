@@ -8,6 +8,7 @@ CONF_ISIN_CONFIG = "isin_config"
 CONF_NAME = "name"
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_QUANTITY = "quantity"
+CONF_POSITION_VALUE_PRICE = "position_value_price"
 CONF_ETFOBJECT = "etfobject"
 
 
@@ -19,6 +20,8 @@ SAVE_AND_CLOSE = "__save_close__"
 
 DEFAULT_SCAN_INTERVAL = 15
 DEFAULT_QUANTITY = 0.0  # 0 = deaktiviert/kein Positionswert
+DEFAULT_POSITION_VALUE_PRICE = "bid"
+POSITION_VALUE_PRICE_OPTIONS: Final = ("bid", "ask", "mid")
 
 
 NAME = "ha-justetf-live"

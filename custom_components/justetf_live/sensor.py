@@ -25,7 +25,11 @@ from .const import (
     CONF_ISIN_CONFIG,
     CONF_NAME,
     CONF_QUANTITY,
-    DEFAULT_QUANTITY, CONF_ETFOBJECT
+    CONF_POSITION_VALUE_PRICE,
+    DEFAULT_QUANTITY,
+    CONF_ETFOBJECT,
+    DEFAULT_POSITION_VALUE_PRICE,
+    POSITION_VALUE_PRICE_OPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,6 +39,7 @@ _LOGGER = logging.getLogger(__name__)
 class ExtSensorEntityDescription(SensorEntityDescription):
     tag: Tag | None = None
     quantity: float | None = None
+    position_value_price: str | None = None
 
 SENSOR_STUBS: Final = [
     ExtSensorEntityDescription(
@@ -50,7 +55,8 @@ SENSOR_STUBS: Final = [
         icon="mdi:chart-line",
         #device_class = SensorDeviceClass.MONETARY,
         state_class = SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement="€"
+        native_unit_of_measurement="€",
+        suggested_display_precision=2
     ),
     ExtSensorEntityDescription(
         tag=Tag.BID,
@@ -58,6 +64,7 @@ SENSOR_STUBS: Final = [
         icon="mdi:briefcase-minus",
         state_class = SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="€",
+        suggested_display_precision=2,
         entity_registry_enabled_default=False
     ),
     ExtSensorEntityDescription(
@@ -66,19 +73,22 @@ SENSOR_STUBS: Final = [
         icon="mdi:briefcase-plus",
         state_class = SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="€",
+        suggested_display_precision=2,
         entity_registry_enabled_default=False
     ),
     ExtSensorEntityDescription(
         tag=Tag.DTDPRC,
         key=Tag.DTDPRC.key,
         state_class = SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement=PERCENTAGE
+        native_unit_of_measurement=PERCENTAGE,
+        suggested_display_precision=2
     ),
     ExtSensorEntityDescription(
         tag=Tag.DTDAMT,
         key=Tag.DTDAMT.key,
         state_class = SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement="€"
+        native_unit_of_measurement="€",
+        suggested_display_precision=2
     ),
     ExtSensorEntityDescription(
         tag=Tag.QUOTE52WEEKHIGH,
@@ -86,7 +96,8 @@ SENSOR_STUBS: Final = [
         icon="mdi:arrow-expand-vertical",
         #device_class = SensorDeviceClass.MONETARY,
         state_class = SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement="€"
+        native_unit_of_measurement="€",
+        suggested_display_precision=2
     ),
     ExtSensorEntityDescription(
         tag=Tag.QUOTE52WEEKLOW,
@@ -94,7 +105,8 @@ SENSOR_STUBS: Final = [
         icon="mdi:arrow-expand-vertical",
         #device_class = SensorDeviceClass.MONETARY,
         state_class = SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement="€"
+        native_unit_of_measurement="€",
+        suggested_display_precision=2
     )
 ]
 
@@ -128,11 +140,19 @@ def _get_name_from_config(cfg: dict) -> str:
     return None
 
 
+def _get_position_value_price_key_from_config(config_entry: ConfigEntry) -> str:
+    position_value_price = config_entry.data.get(CONF_POSITION_VALUE_PRICE, DEFAULT_POSITION_VALUE_PRICE)
+    if position_value_price in POSITION_VALUE_PRICE_OPTIONS:
+        return position_value_price
+    return DEFAULT_POSITION_VALUE_PRICE
+
+
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
 
     coordinator: JustETFDataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
     isins: list[str] = config_entry.data.get(CONF_ISINS, [])
     isin_configs: dict[str, dict] = config_entry.data.get(CONF_ISIN_CONFIG, {})
+    position_value_price_key = _get_position_value_price_key_from_config(config_entry)
 
     sensors: list[JustETFBaseEntity] = []
 
@@ -149,6 +169,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
                 tag=Tag.POSITIONVALUE,
                 key=Tag.POSITIONVALUE.key,
                 quantity=quantity,
+                position_value_price=position_value_price_key,
                 icon="mdi:briefcase",
                 suggested_display_precision=2,
                 device_class=SensorDeviceClass.MONETARY,
@@ -264,9 +285,7 @@ class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
                     return data.get(key1, {}).get(key2, None)
                 else:
                     if self.tag == Tag.POSITIONVALUE:
-                        # to calculate position value, we need the mid-price...
-                        #val = data.get(Tag.MID.key, None)
-                        val = data.get(Tag.BID.key, None)
+                        val = data.get(self.entity_description.position_value_price, None)
                     else:
                         val = data.get(self.tag.key, None)
 

@@ -8,8 +8,12 @@
           "isin": "ISIN",
           "name": "Name (optional)",
           "scan_interval": "Update interval (minutes)",
-          "instrument_type": "Instrument type",
+          "position_value_price": "Price used for positions value calculation",
           "quantity": "Quantity (shares/units)"
+        },
+        "data_description": {
+          "position_value_price": "If you wish to calculate the position value for an ETF, specify the base price per unit. This price is used for the position value calculation.",
+          "scan_interval": "The update interval typically does not matter, as this integration uses a WebSocket connection. However, should this connection fail for an extended period, the update interval will take effect."
         }
       },
       "select_isin": {
@@ -17,13 +21,18 @@
         "description": "Select an ISIN to edit or add a new one.",
         "data": {
           "selected_isin": "Select your action",
-          "scan_interval": "Update interval (minutes)"
+          "scan_interval": "Update interval (minutes)",
+          "position_value_price": "Price used for positions value"
         },
         "actions": {
           "add_new": "➕ Add new ISIN",
           "delete_isin": "🗑️ Delete ISIN",
           "edit_isin": "✏\uFE0F edit '{label}'",
           "save_close": "💾 Only save 'Update interval' & close"
+        },
+        "data_description": {
+          "position_value_price": "If you wish to calculate the position value for an ETF, specify the base price per unit. This price is used for the position value calculation.",
+          "scan_interval": "The update interval typically does not matter, as this integration uses a WebSocket connection. However, should this connection fail for an extended period, the update interval will take effect."
         }
       },
       "add_isin": {
@@ -32,8 +41,7 @@
         "data": {
           "isin": "ISIN",
           "name": "Name (optional)",
-          "instrument_type": "Instrument type",
-          "quantity": "Quantity (shares/units)"
+          "quantity": "Quantity (your shares/units)"
         }
       },
       "edit_isin": {
@@ -41,8 +49,7 @@
         "description": "Editing settings for ISIN: **{isin}**",
         "data": {
           "name": "Name (optional)",
-          "instrument_type": "Instrument type",
-          "quantity": "Quantity (shares/units)"
+          "quantity": "Quantity (your shares/units)"
         }
       },
       "delete_isin": {
@@ -62,11 +69,11 @@
     }
   },
   "selector": {
-    "instrument_type": {
+    "position_value_price": {
       "options": {
-        "auto": "Automatic detection",
-        "etf": "ETF / Fund",
-        "stock": "Stock / Share"
+        "bid": "Bid (selling)",
+        "ask": "Ask (buying)",
+        "mid": "Mid (average)"
       }
     }
   },

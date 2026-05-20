@@ -14,8 +14,7 @@ from homeassistant.helpers.selector import (
 )
 from homeassistant.helpers.translation import async_get_translations
 
-from custom_components.justetf_live.pyjustetflive_ha import JustETFBridge
-from .const import (
+from custom_components.justetf_live.const import (
     DOMAIN,
     CONF_ISIN,
     CONF_ISINS,
@@ -23,16 +22,50 @@ from .const import (
     CONF_NAME,
     CONF_SCAN_INTERVAL,
     CONF_QUANTITY,
+    CONF_POSITION_VALUE_PRICE,
     CONF_ETFOBJECT,
     CONF_SELECTED_ISIN,
     ADD_NEW_ISIN,
     DELETE_ISIN,
     SAVE_AND_CLOSE,
     DEFAULT_SCAN_INTERVAL,
-    DEFAULT_QUANTITY
+    DEFAULT_QUANTITY,
+    DEFAULT_POSITION_VALUE_PRICE,
+    POSITION_VALUE_PRICE_OPTIONS,
 )
+from custom_components.justetf_live.pyjustetflive_ha import JustETFBridge
+from custom_components.justetf_live.pyjustetflive_ha.keys import Tag
 
 _LOGGER = logging.getLogger(__name__)
+
+
+async def _async_position_value_price_selector(hass) -> SelectSelector:
+    translations = await async_get_translations(
+        hass, hass.config.language, "selector", {DOMAIN}
+    )
+
+    def translate_option(tag: Tag, fallback: str) -> str:
+        return translations.get(
+            f"component.{DOMAIN}.selector.position_value_price.options.{tag.key}",
+            fallback,
+        )
+
+    return SelectSelector(
+        SelectSelectorConfig(
+            options=[
+                SelectOptionDict(value=Tag.BID.key, label=translate_option(Tag.BID, "Bid")),
+                SelectOptionDict(value=Tag.ASK.key, label=translate_option(Tag.ASK, "Ask")),
+                SelectOptionDict(value=Tag.MID.key, label=translate_option(Tag.MID, "Mid")),
+            ],
+            mode=SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
+def _get_position_value_price(value: Any) -> str:
+    if value in POSITION_VALUE_PRICE_OPTIONS:
+        return value
+    return DEFAULT_POSITION_VALUE_PRICE
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -63,6 +96,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             name = (user_input.get(CONF_NAME) or "").strip()
             scan_interval = int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
             quantity = float(user_input.get(CONF_QUANTITY, DEFAULT_QUANTITY))
+            position_value_price = _get_position_value_price(user_input.get(CONF_POSITION_VALUE_PRICE))
 
             await self.async_set_unique_id(DOMAIN)
             self._abort_if_unique_id_configured()
@@ -73,6 +107,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title="justETF live",
                     data={
                         CONF_SCAN_INTERVAL: scan_interval,
+                        CONF_POSITION_VALUE_PRICE: position_value_price,
                         CONF_ISINS: [isin],
                         CONF_ISIN_CONFIG: {
                             isin: {
@@ -91,6 +126,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({
                 vol.Required(CONF_ISIN): str,
                 vol.Optional(CONF_NAME, default=""): str,
+                vol.Required(CONF_POSITION_VALUE_PRICE, default=DEFAULT_POSITION_VALUE_PRICE): await _async_position_value_price_selector(self.hass),
                 vol.Required(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(int, vol.Range(min=1, max=360)),
                 vol.Optional(CONF_QUANTITY, default=DEFAULT_QUANTITY): vol.All(vol.Coerce(float), vol.Range(min=0)),
             }),
@@ -146,6 +182,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is None:
             current_scan = int(entry_data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+            current_position_value_price = _get_position_value_price(entry_data.get(CONF_POSITION_VALUE_PRICE))
             return self.async_show_form(
                 step_id="select_isin",
                 data_schema=vol.Schema({
@@ -154,16 +191,22 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             options=options,
                             mode=SelectSelectorMode.LIST if len(options) < 15 else SelectSelectorMode.DROPDOWN
                         )),
+                    vol.Required(CONF_POSITION_VALUE_PRICE, default=current_position_value_price): await _async_position_value_price_selector(self.hass),
                     vol.Required(CONF_SCAN_INTERVAL, default=current_scan): vol.All(int, vol.Range(min=1, max=360)),
                 }),
             )
 
-        # Save potentially updated scan_interval (reconfigure only)
+        # Save potentially updated global options (reconfigure only)
         if self._is_reconfigure and CONF_SCAN_INTERVAL in user_input:
             new_scan = int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
-            if new_scan != int(entry_data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)):
+            new_position_value_price = _get_position_value_price(user_input.get(CONF_POSITION_VALUE_PRICE))
+            if (
+                    new_scan != int(entry_data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+                    or new_position_value_price != _get_position_value_price(entry_data.get(CONF_POSITION_VALUE_PRICE))
+            ):
                 new_data = dict(entry_data)
                 new_data[CONF_SCAN_INTERVAL] = new_scan
+                new_data[CONF_POSITION_VALUE_PRICE] = new_position_value_price
                 self.hass.config_entries.async_update_entry(self._existing_entry, data=new_data)
 
         selected = user_input[CONF_SELECTED_ISIN]

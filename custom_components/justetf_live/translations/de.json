@@ -8,7 +8,12 @@
           "isin": "ISIN",
           "name": "Name (optional)",
           "scan_interval": "Update-Intervall (Minuten)",
+          "position_value_price": "Preis für Positionswertberechnung",
           "quantity": "Stückzahl (Anteile)"
+        },
+        "data_description": {
+          "position_value_price": "Wenn Du für einen ETF einen Positions-Wert berechnen möchtest, gib den Basis-Preis für eine Einheit an. Dieser Preis wird für die Positions-Wert-Berechnung verwendet.",
+          "scan_interval": "Das Aktualisierungsintervall spielt normalerweise keine Rolle, da diese Integration eine WebSocket verbindung verwendet. Sollte diese Verbindung allerdings für eine längere Zeit ausfallen, greift das Aktualisierungsintervall."
         }
       },
       "select_isin": {
@@ -16,13 +21,18 @@
         "description": "Wähle eine ISIN zum Bearbeiten oder füge eine neue hinzu.",
         "data": {
           "selected_isin": "Wähle eine Option",
-          "scan_interval": "Update-Intervall (Minuten)"
+          "scan_interval": "Update-Intervall (Minuten)",
+          "position_value_price": "Preis fuer Positionswert"
         },
         "actions": {
           "add_new": "➕ Neue ISIN hinzufügen",
           "delete_isin": "🗑️ ISIN löschen",
           "edit_isin": "✏\uFE0F '{label}' bearbeiten",
           "save_close": "💾 Nur 'Update-Intervall' aktualisieren & schließen"
+        },
+        "data_description": {
+          "position_value_price": "Wenn Du für einen ETF einen Positions-Wert berechnen möchtest, gib den Basis-Preis für eine Einheit an. Dieser Preis wird für die Positions-Wert-Berechnung verwendet.",
+          "scan_interval": "Das Aktualisierungsintervall spielt normalerweise keine Rolle, da diese Integration eine WebSocket verbindung verwendet. Sollte diese Verbindung allerdings für eine längere Zeit ausfallen, greift das Aktualisierungsintervall."
         }
       },
       "add_isin": {
@@ -31,8 +41,7 @@
         "data": {
           "isin": "ISIN",
           "name": "Name (optional)",
-          "instrument_type": "Instrument-Typ",
-          "quantity": "Stückzahl (Anteile)"
+          "quantity": "Stückzahl (Deine Anteile)"
         }
       },
       "edit_isin": {
@@ -40,8 +49,7 @@
         "description": "Einstellungen für ISIN bearbeiten: **{isin}**",
         "data": {
           "name": "Name (optional)",
-          "instrument_type": "Instrument-Typ",
-          "quantity": "Stückzahl (Anteile)"
+          "quantity": "Stückzahl (Deine Anteile)"
         }
       },
       "delete_isin": {
@@ -58,6 +66,15 @@
     },
     "abort": {
       "reconfigured": "Konfiguration erfolgreich aktualisiert."
+    }
+  },
+  "selector": {
+    "position_value_price": {
+      "options": {
+        "bid": "Geldkurs (Verkaufspreis)",
+        "ask": "Briefkurs (Kaufpreis)",
+        "mid": "Mittelkurs (Durchschnitt)"
+      }
     }
   },
   "entity": {
