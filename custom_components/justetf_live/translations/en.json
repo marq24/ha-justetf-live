@@ -24,12 +24,6 @@
           "scan_interval": "Update interval (minutes)",
           "position_value_price": "Price used for positions value"
         },
-        "actions": {
-          "add_new": "➕ Add new ISIN",
-          "delete_isin": "🗑️ Delete ISIN",
-          "edit_isin": "✏\uFE0F edit '{label}'",
-          "save_close": "💾 Only save 'Update interval' & close"
-        },
         "data_description": {
           "position_value_price": "If you wish to calculate the position value for an ETF, specify the base price per unit. This price is used for the position value calculation.",
           "scan_interval": "The update interval typically does not matter, as this integration uses a WebSocket connection. However, should this connection fail for an extended period, the update interval will take effect."
@@ -74,6 +68,14 @@
         "bid": "Bid (selling)",
         "ask": "Ask (buying)",
         "mid": "Mid (average)"
+      }
+    },
+    "actions": {
+      "options": {
+        "add_new": "➕ Add new ISIN",
+        "delete_isin": "🗑️ Delete ISIN",
+        "edit_isin": "✏\uFE0F edit {label}",
+        "save_close": "💾 Only save 'Update interval' or 'Price used for positions value' & close"
       }
     }
   },

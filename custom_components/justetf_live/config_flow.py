@@ -157,7 +157,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         def translate_key(key: str, fallback: str) -> str:
             return translations.get(
-                f"component.{DOMAIN}.config.step.select_isin.actions.{key}",
+                f"component.{DOMAIN}.selector.actions.options.{key}",
                 fallback,
             )
 

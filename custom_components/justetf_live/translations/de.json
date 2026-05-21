@@ -22,13 +22,7 @@
         "data": {
           "selected_isin": "Wähle eine Option",
           "scan_interval": "Update-Intervall (Minuten)",
-          "position_value_price": "Preis fuer Positionswert"
-        },
-        "actions": {
-          "add_new": "➕ Neue ISIN hinzufügen",
-          "delete_isin": "🗑️ ISIN löschen",
-          "edit_isin": "✏\uFE0F '{label}' bearbeiten",
-          "save_close": "💾 Nur 'Update-Intervall' aktualisieren & schließen"
+          "position_value_price": "Preis für Positionswertberechnung"
         },
         "data_description": {
           "position_value_price": "Wenn Du für einen ETF einen Positions-Wert berechnen möchtest, gib den Basis-Preis für eine Einheit an. Dieser Preis wird für die Positions-Wert-Berechnung verwendet.",
@@ -74,6 +68,14 @@
         "bid": "Geldkurs (Verkaufspreis)",
         "ask": "Briefkurs (Kaufpreis)",
         "mid": "Mittelkurs (Durchschnitt)"
+      }
+    },
+    "actions": {
+      "options": {
+        "add_new": "➕ Neue ISIN hinzufügen",
+        "delete_isin": "🗑️ ISIN löschen",
+        "edit_isin": "✏\uFE0F {label} bearbeiten",
+        "save_close": "💾 Nur 'Update-Intervall' oder 'Preis für Positionswertberechnung' aktualisieren & schließen"
       }
     }
   },
