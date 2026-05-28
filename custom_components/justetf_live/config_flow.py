@@ -22,7 +22,8 @@ from custom_components.justetf_live.const import (
     CONF_NAME,
     CONF_SCAN_INTERVAL,
     CONF_QUANTITY,
-    CONF_POSITION_VALUE_PRICE,
+    CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE,
+    CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START,
     CONF_ETFOBJECT,
     CONF_SELECTED_ISIN,
     ADD_NEW_ISIN,
@@ -30,8 +31,8 @@ from custom_components.justetf_live.const import (
     SAVE_AND_CLOSE,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_QUANTITY,
-    DEFAULT_POSITION_VALUE_PRICE,
-    POSITION_VALUE_PRICE_OPTIONS,
+    DEFAULT_PRICE_TO_USE_AS_SOURCE,
+    PRICE_TO_USE_AS_SOURCE_OPTIONS,
 )
 from custom_components.justetf_live.pyjustetflive_ha import JustETFBridge
 from custom_components.justetf_live.pyjustetflive_ha.keys import Tag
@@ -62,10 +63,10 @@ async def _async_position_value_price_selector(hass) -> SelectSelector:
     )
 
 
-def _get_position_value_price(value: Any) -> str:
-    if value in POSITION_VALUE_PRICE_OPTIONS:
+def _get_valid_source_value_price(value: Any) -> str:
+    if value in PRICE_TO_USE_AS_SOURCE_OPTIONS:
         return value
-    return DEFAULT_POSITION_VALUE_PRICE
+    return DEFAULT_PRICE_TO_USE_AS_SOURCE
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -96,7 +97,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             name = (user_input.get(CONF_NAME) or "").strip()
             scan_interval = int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
             quantity = float(user_input.get(CONF_QUANTITY, DEFAULT_QUANTITY))
-            position_value_price = _get_position_value_price(user_input.get(CONF_POSITION_VALUE_PRICE))
+            start_value_price = _get_valid_source_value_price(user_input.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START))
+            position_value_price = _get_valid_source_value_price(user_input.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE))
 
             await self.async_set_unique_id(DOMAIN)
             self._abort_if_unique_id_configured()
@@ -107,7 +109,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title="justETF live",
                     data={
                         CONF_SCAN_INTERVAL: scan_interval,
-                        CONF_POSITION_VALUE_PRICE: position_value_price,
+                        CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START: start_value_price,
+                        CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE: position_value_price,
                         CONF_ISINS: [isin],
                         CONF_ISIN_CONFIG: {
                             isin: {
@@ -126,7 +129,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({
                 vol.Required(CONF_ISIN): str,
                 vol.Optional(CONF_NAME, default=""): str,
-                vol.Required(CONF_POSITION_VALUE_PRICE, default=DEFAULT_POSITION_VALUE_PRICE): await _async_position_value_price_selector(self.hass),
+                vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START, default=DEFAULT_PRICE_TO_USE_AS_SOURCE): await _async_position_value_price_selector(self.hass),
+                vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE, default=DEFAULT_PRICE_TO_USE_AS_SOURCE): await _async_position_value_price_selector(self.hass),
                 vol.Required(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(int, vol.Range(min=1, max=360)),
                 vol.Optional(CONF_QUANTITY, default=DEFAULT_QUANTITY): vol.All(vol.Coerce(float), vol.Range(min=0)),
             }),
@@ -182,7 +186,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is None:
             current_scan = int(entry_data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
-            current_position_value_price = _get_position_value_price(entry_data.get(CONF_POSITION_VALUE_PRICE))
+            current_start_value_price = _get_valid_source_value_price(entry_data.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START))
+            current_position_value_price = _get_valid_source_value_price(entry_data.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE))
             return self.async_show_form(
                 step_id="select_isin",
                 data_schema=vol.Schema({
@@ -191,7 +196,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             options=options,
                             mode=SelectSelectorMode.LIST if len(options) < 15 else SelectSelectorMode.DROPDOWN
                         )),
-                    vol.Required(CONF_POSITION_VALUE_PRICE, default=current_position_value_price): await _async_position_value_price_selector(self.hass),
+                    vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START, default=current_start_value_price): await _async_position_value_price_selector(self.hass),
+                    vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE, default=current_position_value_price): await _async_position_value_price_selector(self.hass),
                     vol.Required(CONF_SCAN_INTERVAL, default=current_scan): vol.All(int, vol.Range(min=1, max=360)),
                 }),
             )
@@ -199,14 +205,18 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # Save potentially updated global options (reconfigure only)
         if self._is_reconfigure and CONF_SCAN_INTERVAL in user_input:
             new_scan = int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
-            new_position_value_price = _get_position_value_price(user_input.get(CONF_POSITION_VALUE_PRICE))
+            new_start_value_price = _get_valid_source_value_price(user_input.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START))
+            new_position_value_price = _get_valid_source_value_price(user_input.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE))
             if (
                     new_scan != int(entry_data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
-                    or new_position_value_price != _get_position_value_price(entry_data.get(CONF_POSITION_VALUE_PRICE))
+                    or new_start_value_price != _get_valid_source_value_price(entry_data.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START))
+                    or new_position_value_price != _get_valid_source_value_price(entry_data.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE))
             ):
                 new_data = dict(entry_data)
                 new_data[CONF_SCAN_INTERVAL] = new_scan
-                new_data[CONF_POSITION_VALUE_PRICE] = new_position_value_price
+                new_data[CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START] = new_start_value_price
+                new_data[CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE] = new_position_value_price
+
                 self.hass.config_entries.async_update_entry(self._existing_entry, data=new_data)
 
         selected = user_input[CONF_SELECTED_ISIN]

@@ -9,10 +9,12 @@
           "name": "Name (optional)",
           "scan_interval": "Update interval (minutes)",
           "position_value_price": "Price used for positions value calculation",
+          "day_month_start_price": "Price for the day & month start values",
           "quantity": "Quantity (shares/units)"
         },
         "data_description": {
           "position_value_price": "If you wish to calculate the position value for an ETF, specify the base price per unit. This price is used for the position value calculation.",
+          "day_month_start_price": "This price is used for the calculation of the day & month start values.",
           "scan_interval": "The update interval typically does not matter, as this integration uses a WebSocket connection. However, should this connection fail for an extended period, the update interval will take effect."
         }
       },
@@ -22,10 +24,12 @@
         "data": {
           "selected_isin": "Select your action",
           "scan_interval": "Update interval (minutes)",
-          "position_value_price": "Price used for positions value"
+          "position_value_price": "Price used for positions value",
+          "day_month_start_price": "Price for the day & month start values"
         },
         "data_description": {
           "position_value_price": "If you wish to calculate the position value for an ETF, specify the base price per unit. This price is used for the position value calculation.",
+          "day_month_start_price": "This price is used for the calculation of the day & month start values.",
           "scan_interval": "The update interval typically does not matter, as this integration uses a WebSocket connection. However, should this connection fail for an extended period, the update interval will take effect."
         }
       },
@@ -75,20 +79,26 @@
         "add_new": "➕ Add new ISIN",
         "delete_isin": "🗑️ Delete ISIN",
         "edit_isin": "✏\uFE0F edit {label}",
-        "save_close": "💾 Only save 'Update interval' or 'Price used for positions value' & close"
+        "save_close": "💾 Only save 'Update interval' or 'Price used for positions/start values' & close"
       }
     }
   },
   "entity": {
     "sensor": {
-      "dtdprc": { "name": "Change %" },
-      "dtdamt": { "name": "Change" },
+      "dtdprc": { "name": "Change Day2Day %" },
+      "dtdamt": { "name": "Change Day2Day" },
       "mid":  { "name": "Price" },
       "bid":  { "name": "Price (bid)" },
       "ask":  { "name": "Price (ask)" },
       "position_value": { "name": "Positions value" },
       "quote52weeklow": { "name": "52W low" },
       "quote52weekhigh": { "name": "52W high" },
+      "start_price_day": { "name": "Day start price" },
+      "start_price_month": { "name": "Month start price" },
+      "total_change_day": { "name": "Change Day" },
+      "change_prc_day": { "name": "Change Day %" },
+      "total_change_month": { "name": "Change Month" },
+      "change_prc_month": { "name": "Change Month %" },
       "timestamp": { "name": "Last update" }
     }
   }

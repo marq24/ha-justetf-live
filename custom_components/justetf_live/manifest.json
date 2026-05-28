@@ -3,7 +3,7 @@
   "name": "justETF live - Realtime ETF stock data via WebSocket (provided by https://www.justetf.com)",
   "codeowners": ["@marq24"],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": ["recorder"],
   "documentation": "https://github.com/marq24/ha-justetf-live/blob/main/README.md",
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/marq24/ha-justetf-live/issues",

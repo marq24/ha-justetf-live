@@ -9,10 +9,12 @@
           "name": "Name (optional)",
           "scan_interval": "Update-Intervall (Minuten)",
           "position_value_price": "Preis für Positionswertberechnung",
+          "day_month_start_price": "Preis für Tages- & Monatsstartwerte",
           "quantity": "Stückzahl (Anteile)"
         },
         "data_description": {
           "position_value_price": "Wenn Du für einen ETF einen Positions-Wert berechnen möchtest, gib den Basis-Preis für eine Einheit an. Dieser Preis wird für die Positions-Wert-Berechnung verwendet.",
+          "day_month_start_price": "Dieser Preis wird für die Berechnung der Tages- und Monatsstartwerte verwendet.",
           "scan_interval": "Das Aktualisierungsintervall spielt normalerweise keine Rolle, da diese Integration eine WebSocket verbindung verwendet. Sollte diese Verbindung allerdings für eine längere Zeit ausfallen, greift das Aktualisierungsintervall."
         }
       },
@@ -22,10 +24,12 @@
         "data": {
           "selected_isin": "Wähle eine Option",
           "scan_interval": "Update-Intervall (Minuten)",
-          "position_value_price": "Preis für Positionswertberechnung"
+          "position_value_price": "Preis für Positionswertberechnung",
+          "day_month_start_price": "Preis für Tages- & Monatsstartwerte"
         },
         "data_description": {
           "position_value_price": "Wenn Du für einen ETF einen Positions-Wert berechnen möchtest, gib den Basis-Preis für eine Einheit an. Dieser Preis wird für die Positions-Wert-Berechnung verwendet.",
+          "day_month_start_price": "Dieser Preis wird für die Berechnung der Tages- und Monatsstartwerte verwendet.",
           "scan_interval": "Das Aktualisierungsintervall spielt normalerweise keine Rolle, da diese Integration eine WebSocket verbindung verwendet. Sollte diese Verbindung allerdings für eine längere Zeit ausfallen, greift das Aktualisierungsintervall."
         }
       },
@@ -84,11 +88,17 @@
       "mid":  { "name": "Preis" },
       "bid":  { "name": "Preis (Geldkurs)" },
       "ask":  { "name": "Preis (Briefkurs)" },
-      "dtdprc": { "name": "Änderung %" },
-      "dtdamt": { "name": "Änderung" },
+      "dtdprc": { "name": "Änderung Day2Day %" },
+      "dtdamt": { "name": "Änderung Day2Day" },
       "position_value": { "name": "Positionswert" },
       "quote52weeklow": { "name": "52W Tief" },
       "quote52weekhigh": { "name": "52W Hoch" },
+      "start_price_day": { "name": "Startpreis Tag" },
+      "start_price_month": { "name": "Startpreis Monat" },
+      "total_change_day": { "name": "Änderung Tag" },
+      "change_prc_day": { "name": "Änderung Tag %" },
+      "total_change_month": { "name": "Änderung Monat" },
+      "change_prc_month": { "name": "Änderung Monat %" },
       "timestamp": { "name": "Letztes Update" }
     }
   }

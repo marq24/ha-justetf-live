@@ -33,6 +33,7 @@ class Tag(ApiKey, Enum):
         return self.key
 
 
+    # UTC timestamp from websocket/API data
     TIMESTAMP = ApiKey(key="timestamp")
 
     # The Bid price is the highest price a buyer is currently willing to pay for the ETF. If you own shares and
@@ -72,3 +73,15 @@ class Tag(ApiKey, Enum):
 
     # if a quantity is provided, add a value sensor
     POSITIONVALUE = ApiKey(key="position_value")
+
+    # Snapshot keys (derived sensors)
+    STARTPRICEDAY = ApiKey(key="start_price_day")
+    STARTPRICEMONTH = ApiKey(key="start_price_month")
+
+    # Delta keys (live price vs start-of-day / start-of-month)
+    TOTALCHANGEDAY = ApiKey(key="total_change_day")
+    TOTALCHANGEMONTH = ApiKey(key="total_change_month")
+    CHANGEPRCDAY = ApiKey(key="change_prc_day")
+    CHANGEPRCMONTH = ApiKey(key="change_prc_month")
+
+

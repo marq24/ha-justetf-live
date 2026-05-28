@@ -1,8 +1,11 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import datetime, time, timezone, timedelta
 from typing import Final, Any
 
 from awesomeversion import AwesomeVersion
+from homeassistant.components.recorder import get_instance
+from homeassistant.components.recorder.history import state_changes_during_period
 from homeassistant.components.sensor import (
     SensorEntity,
     SensorDeviceClass,
@@ -25,21 +28,27 @@ from .const import (
     CONF_ISIN_CONFIG,
     CONF_NAME,
     CONF_QUANTITY,
-    CONF_POSITION_VALUE_PRICE,
+    CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE,
+    CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START,
     DEFAULT_QUANTITY,
     CONF_ETFOBJECT,
-    DEFAULT_POSITION_VALUE_PRICE,
-    POSITION_VALUE_PRICE_OPTIONS,
+    DEFAULT_PRICE_TO_USE_AS_SOURCE,
+    PRICE_TO_USE_AS_SOURCE_OPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+SNAPSHOT_ATTR_PERIOD_ID: Final = "snapshot_period_id"
+SNAPSHOT_ATTR_CAPTURED_AT: Final = "snapshot_captured_at"
+INVALID_STATES: Final = {"unknown", "unavailable", "None", None}
+SNAPSHOT_HISTORY_LOOKBACK: Final = timedelta(hours=12)
 
 
 @dataclass(frozen=True)
 class ExtSensorEntityDescription(SensorEntityDescription):
     tag: Tag | None = None
     quantity: float | None = None
-    position_value_price: str | None = None
+    price_source_to_use: str | None = None
 
 SENSOR_STUBS: Final = [
     ExtSensorEntityDescription(
@@ -109,6 +118,58 @@ SENSOR_STUBS: Final = [
         suggested_display_precision=2
     )
 ]
+SENSOR_SNAP_STUBS: Final = [
+    ExtSensorEntityDescription(
+        tag=Tag.STARTPRICEDAY,
+        key=Tag.STARTPRICEDAY.key,
+        icon="mdi:calendar-today-outline",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="€",
+        suggested_display_precision=2,
+    ),
+    ExtSensorEntityDescription(
+        tag=Tag.STARTPRICEMONTH,
+        key=Tag.STARTPRICEMONTH.key,
+        icon="mdi:calendar-month-outline",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="€",
+        suggested_display_precision=2,
+    ),
+]
+SENSOR_CHANGE_STUBS: Final = [
+    ExtSensorEntityDescription(
+        tag=Tag.TOTALCHANGEDAY,
+        key=Tag.TOTALCHANGEDAY.key,
+        icon="mdi:calendar-today-outline",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="€",
+        suggested_display_precision=2,
+    ),
+    ExtSensorEntityDescription(
+        tag=Tag.CHANGEPRCDAY,
+        key=Tag.CHANGEPRCDAY.key,
+        icon="mdi:calendar-today-outline",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=PERCENTAGE,
+        suggested_display_precision=2,
+    ),
+    ExtSensorEntityDescription(
+        tag=Tag.TOTALCHANGEMONTH,
+        key=Tag.TOTALCHANGEMONTH.key,
+        icon="mdi:calendar-month-outline",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="€",
+        suggested_display_precision=2,
+    ),
+    ExtSensorEntityDescription(
+        tag=Tag.CHANGEPRCMONTH,
+        key=Tag.CHANGEPRCMONTH.key,
+        icon="mdi:calendar-month-outline",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=PERCENTAGE,
+        suggested_display_precision=2,
+    ),
+]
 
 USE_NEW_FRIENDLY_NAME = AwesomeVersion(HA_VERSION) >= AwesomeVersion("2026.2.0")
 
@@ -140,19 +201,19 @@ def _get_name_from_config(cfg: dict) -> str:
     return None
 
 
-def _get_position_value_price_key_from_config(config_entry: ConfigEntry) -> str:
-    position_value_price = config_entry.data.get(CONF_POSITION_VALUE_PRICE, DEFAULT_POSITION_VALUE_PRICE)
-    if position_value_price in POSITION_VALUE_PRICE_OPTIONS:
-        return position_value_price
-    return DEFAULT_POSITION_VALUE_PRICE
-
+def _get_price_source_to_use_key_from_config(config_entry: ConfigEntry, key) -> str:
+    price_source_to_use = config_entry.data.get(key, DEFAULT_PRICE_TO_USE_AS_SOURCE)
+    if price_source_to_use in PRICE_TO_USE_AS_SOURCE_OPTIONS:
+        return price_source_to_use
+    return DEFAULT_PRICE_TO_USE_AS_SOURCE
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
 
     coordinator: JustETFDataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
     isins: list[str] = config_entry.data.get(CONF_ISINS, [])
     isin_configs: dict[str, dict] = config_entry.data.get(CONF_ISIN_CONFIG, {})
-    position_value_price_key = _get_position_value_price_key_from_config(config_entry)
+    price_source_to_use_for_position_key = _get_price_source_to_use_key_from_config(config_entry, key=CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE)
+    price_source_to_use_for_starts_key = _get_price_source_to_use_key_from_config(config_entry, key=CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START)
 
     sensors: list[JustETFBaseEntity] = []
 
@@ -164,12 +225,20 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
         for a_stub in SENSOR_STUBS:
             sensors.append(JustETFBaseEntity(isin=isin, isin_name=display_name, coordinator=coordinator, description=a_stub))
 
+        for a_stub in SENSOR_SNAP_STUBS:
+            a_stub = replace(a_stub, price_source_to_use=price_source_to_use_for_starts_key)
+            sensors.append(JustETFBidSnapshotEntity(isin=isin, isin_name=display_name, coordinator=coordinator, description=a_stub))
+
+        for a_stub in SENSOR_CHANGE_STUBS:
+            a_stub = replace(a_stub, price_source_to_use=price_source_to_use_for_starts_key)
+            sensors.append(JustETFDeltaSensorEntity(isin=isin, isin_name=display_name, coordinator=coordinator, description=a_stub))
+
         if quantity > 0:
             a_stub = ExtSensorEntityDescription(
                 tag=Tag.POSITIONVALUE,
                 key=Tag.POSITIONVALUE.key,
                 quantity=quantity,
-                position_value_price=position_value_price_key,
+                price_source_to_use=price_source_to_use_for_position_key,
                 icon="mdi:briefcase",
                 suggested_display_precision=2,
                 device_class=SensorDeviceClass.MONETARY,
@@ -177,6 +246,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
                 native_unit_of_measurement="€",
             )
             sensors.append(JustETFBaseEntity(isin=isin, isin_name=display_name, coordinator=coordinator, description=a_stub))
+
 
     async_add_entities(sensors, False)
 
@@ -191,7 +261,7 @@ class CustomFriendlyNameEntity(CoordinatorEntity):
     def _Entity__async_calculate_state(self):
         """Calculate state and override ATTR_FRIENDLY_NAME."""
 
-        # First let the base implementation calculate state (returns a tuple)
+        # First, let the base implementation calculate state (returns a tuple)
         result = super()._Entity__async_calculate_state()
 
         if not USE_NEW_FRIENDLY_NAME or self._attr_has_entity_name == False:
@@ -251,7 +321,7 @@ class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
         self.entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{camel_to_snake(description.key)}".lower()
 
     async def async_added_to_hass(self):
-        """Connect to dispatcher listening for entity data notifications."""
+        """Connect to a dispatcher listening for entity data notifications."""
         self.async_on_remove(self.coordinator.async_add_listener(self.async_write_ha_state))
         await super().async_added_to_hass()
 
@@ -285,7 +355,7 @@ class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
                     return data.get(key1, {}).get(key2, None)
                 else:
                     if self.tag == Tag.POSITIONVALUE:
-                        val = data.get(self.entity_description.position_value_price, None)
+                        val = data.get(self.entity_description.price_source_to_use, None)
                     else:
                         val = data.get(self.tag.key, None)
 
@@ -339,7 +409,7 @@ class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
                 _LOGGER.warning(f"Missing attribute 'use_device_name' for {self.tag.key} - probably translation is missing")
                 return self.tag.key
 
-        # check if there is a user specified entity name (overwritten)
+        # check if there is a user has specified entity name (overwritten)
         if registry_entry := self.registry_entry:
             if registry_entry.has_entity_name and registry_entry.name is not None:
                 name = registry_entry.name
@@ -350,3 +420,308 @@ class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
             return f"{device_entry.name_by_user} {name}" if device_name else name
         else:
             return name
+
+
+class JustETFBidSnapshotEntity(JustETFBaseEntity):
+    """Stores bid snapshots for UTC 02:00 daily/monthly periods and restores on restart."""
+
+    def __init__(
+        self,
+        isin: str,
+        isin_name: str,
+        coordinator: JustETFDataUpdateCoordinator,
+        description: ExtSensorEntityDescription,
+    ) -> None:
+        super().__init__(isin=isin, isin_name=isin_name, coordinator=coordinator, description=description)
+        if description.tag == Tag.STARTPRICEMONTH:
+            self._monthly = True
+        else:
+            self._monthly = False
+
+        self._snapshot_value: float | None = None
+        self._snapshot_period_id: str | None = None
+        self._snapshot_captured_at: str | None = None
+        if hasattr(description, "price_source_to_use") and description.price_source_to_use is not None:
+            self._price_source_entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{description.price_source_to_use}".lower()
+        else:
+            self._price_source_entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{Tag.BID.key}".lower()
+        self._last_live_value: float | None = None
+        self._last_live_ts: datetime | None = None
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+
+        if last_state is not None:
+            if last_state.state not in INVALID_STATES:
+                try:
+                    self._snapshot_value = float(last_state.state)
+                except (TypeError, ValueError):
+                    self._snapshot_value = None
+
+            if last_state.attributes is not None:
+                self._snapshot_period_id = last_state.attributes.get(SNAPSHOT_ATTR_PERIOD_ID)
+                self._snapshot_captured_at = last_state.attributes.get(SNAPSHOT_ATTR_CAPTURED_AT)
+
+        await self._async_backfill_from_history_if_needed()
+
+        self._try_capture_snapshot()
+
+    @property
+    def available(self):
+        return self._snapshot_value is not None or super().available
+
+    @property
+    def native_value(self):
+        self._try_capture_snapshot()
+        return self._snapshot_value
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        attrs: dict[str, Any] = {}
+        if self._snapshot_period_id is not None:
+            attrs[SNAPSHOT_ATTR_PERIOD_ID] = self._snapshot_period_id
+        if self._snapshot_captured_at is not None:
+            attrs[SNAPSHOT_ATTR_CAPTURED_AT] = self._snapshot_captured_at
+        return attrs
+
+    def _handle_coordinator_update(self) -> None:
+        self._try_capture_snapshot()
+        super()._handle_coordinator_update()
+
+    def _try_capture_snapshot(self) -> None:
+        if self.coordinator.data is None:
+            return
+
+        data = self.coordinator.data.get(self.isin, {})
+        if hasattr(self.entity_description, "price_source_to_use") and self.entity_description.price_source_to_use is not None:
+            price = data.get(self.entity_description.price_source_to_use)
+        else:
+            price = data.get(Tag.BID.key)
+
+        ts = data.get(Tag.TIMESTAMP.key)
+        if price is None or ts is None or not isinstance(ts, datetime):
+            return
+
+        try:
+            price_as_float = float(price)
+        except (TypeError, ValueError):
+            return
+
+        # Tag.TIMESTAMP is already UTC (set by the bridge parser)
+        ts_utc = ts
+        at_2_utc = time(2, 0)
+        period_id: str | None = None
+        period_start_utc: datetime | None = None
+
+        if self._monthly:
+            # Monthly period is always active:
+            # - current month from day 1, 02:00 UTC onward
+            # - previous month when still before 02:00 UTC on day 1
+            if ts_utc.day == 1 and ts_utc.time() < at_2_utc:
+                if ts_utc.month == 1:
+                    target_year = ts_utc.year - 1
+                    target_month = 12
+                else:
+                    target_year = ts_utc.year
+                    target_month = ts_utc.month - 1
+            else:
+                target_year = ts_utc.year
+                target_month = ts_utc.month
+
+            period_id = f"{target_year:04d}-{target_month:02d}"
+            period_start_utc = datetime(target_year, target_month, 1, 2, 0, tzinfo=timezone.utc)
+        else:
+            if ts_utc.time() >= at_2_utc:
+                period_id = ts_utc.date().isoformat()
+                period_start_utc = datetime.combine(ts_utc.date(), at_2_utc, tzinfo=timezone.utc)
+
+        # Snapshot not due yet for this update; still keep last known live value.
+        if period_id is None or period_start_utc is None:
+            self._last_live_value = price_as_float
+            self._last_live_ts = ts_utc
+            return
+
+        if period_id == self._snapshot_period_id:
+            self._last_live_value = price_as_float
+            self._last_live_ts = ts_utc
+            return
+
+        # Prefer last known value at/before 02:00 UTC; fallback to first after 02:00 UTC.
+        capture_value = price_as_float
+        capture_ts = ts_utc
+        if (
+            self._last_live_value is not None
+            and self._last_live_ts is not None
+            and self._last_live_ts <= period_start_utc <= ts_utc
+        ):
+            capture_value = self._last_live_value
+            capture_ts = self._last_live_ts
+
+        self._snapshot_value = capture_value
+        self._snapshot_period_id = period_id
+        self._snapshot_captured_at = capture_ts.isoformat()
+        self._last_live_value = price_as_float
+        self._last_live_ts = ts_utc
+
+    async def _async_backfill_from_history_if_needed(self) -> None:
+        now_utc = datetime.now(timezone.utc)
+        target = self._target_period_for_now(now_utc)
+        if target is None:
+            return
+
+        period_id, period_start_utc = target
+        if self._snapshot_period_id == period_id and self._snapshot_value is not None:
+            return
+
+        if now_utc <= period_start_utc:
+            return
+
+        recorder = get_instance(self.hass)
+        history_start = period_start_utc - SNAPSHOT_HISTORY_LOOKBACK
+        try:
+            history = await recorder.async_add_executor_job(
+                state_changes_during_period,
+                self.hass,
+                history_start,
+                now_utc,
+                self._price_source_entity_id,
+                True,
+                False,
+            )
+        except BaseException as ex:
+            _LOGGER.debug(f"History backfill failed for {self.entity_id} ({period_id}): {type(ex).__name__} - {ex}")
+            return
+
+        states = []
+        if isinstance(history, dict):
+            states = history.get(self._price_source_entity_id, []) or []
+        elif isinstance(history, list):
+            states = history
+
+        selected_state = None
+        for a_state in states:
+            if a_state.state in INVALID_STATES:
+                continue
+
+            changed = a_state.last_changed
+            if changed is None:
+                continue
+            changed_utc = changed.astimezone(timezone.utc)
+
+            if changed_utc <= period_start_utc:
+                selected_state = a_state
+                continue
+
+            if selected_state is None:
+                selected_state = a_state
+            break
+
+        if selected_state is None:
+            return
+
+        try:
+            a_value = float(selected_state.state)
+        except (TypeError, ValueError):
+            return
+
+        changed = selected_state.last_changed
+        if changed is None:
+            changed = period_start_utc
+        changed_utc = changed.astimezone(timezone.utc)
+        self._snapshot_value = a_value
+        self._snapshot_period_id = period_id
+        self._snapshot_captured_at = changed_utc.isoformat()
+        self._last_live_value = a_value
+        self._last_live_ts = changed_utc
+
+    def _target_period_for_now(self, now_utc: datetime) -> tuple[str, datetime] | None:
+        at_2_utc = time(2, 0)
+
+        if self._monthly:
+            if now_utc.day == 1 and now_utc.time() < at_2_utc:
+                if now_utc.month == 1:
+                    target_year = now_utc.year - 1
+                    target_month = 12
+                else:
+                    target_year = now_utc.year
+                    target_month = now_utc.month - 1
+            else:
+                target_year = now_utc.year
+                target_month = now_utc.month
+
+            period_id = f"{target_year:04d}-{target_month:02d}"
+            period_start = datetime(target_year, target_month, 1, 2, 0, tzinfo=timezone.utc)
+            return period_id, period_start
+
+        if now_utc.time() < at_2_utc:
+            target_date = (now_utc - timedelta(days=1)).date()
+        else:
+            target_date = now_utc.date()
+
+        period_id = target_date.isoformat()
+        period_start = datetime.combine(target_date, at_2_utc, tzinfo=timezone.utc)
+        return period_id, period_start
+
+
+class JustETFDeltaSensorEntity(JustETFBaseEntity):
+
+    def __init__(
+        self,
+        isin: str,
+        isin_name: str,
+        coordinator: JustETFDataUpdateCoordinator,
+        description: ExtSensorEntityDescription,
+    ) -> None:
+        super().__init__(isin=isin, isin_name=isin_name, coordinator=coordinator, description=description)
+        if description.price_source_to_use is not None:
+            self._price_source_key = description.price_source_to_use
+        else:
+            self._price_source_key = Tag.BID.key
+
+        if description.tag in (Tag.TOTALCHANGEDAY, Tag.CHANGEPRCDAY):
+            self._start_entity_id = f"{Platform.SENSOR}.jetf_{isin}_{camel_to_snake(Tag.STARTPRICEDAY.key)}".lower()
+            self._is_percentage = description.tag == Tag.CHANGEPRCDAY
+        else:
+            self._start_entity_id = f"{Platform.SENSOR}.jetf_{isin}_{camel_to_snake(Tag.STARTPRICEMONTH.key)}".lower()
+            self._is_percentage = description.tag == Tag.CHANGEPRCMONTH
+
+    @property
+    def native_value(self):
+        if self.coordinator.data is None:
+            return None
+
+        data = self.coordinator.data.get(self.isin, {})
+        current_value = data.get(self._price_source_key)
+        if current_value is None:
+            return None
+
+        baseline_state = self.hass.states.get(self._start_entity_id)
+        if baseline_state is None or baseline_state.state in INVALID_STATES:
+            return None
+
+        try:
+            current_value_f = float(current_value)
+            baseline_value_f = float(baseline_state.state)
+        except (TypeError, ValueError):
+            return None
+
+        delta = current_value_f - baseline_value_f
+        if not self._is_percentage:
+            return delta
+
+        if baseline_value_f == 0:
+            return None
+
+        return (delta / baseline_value_f) * 100
+
+    @property
+    def icon(self) -> str | None:
+        v = self.native_value
+        if v is None:
+            return "mdi:trending-neutral"
+        if v > 0:
+            return "mdi:trending-up"
+        if v < 0:
+            return "mdi:trending-down"
+        return "mdi:trending-neutral"
