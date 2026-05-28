@@ -79,9 +79,14 @@ class Tag(ApiKey, Enum):
     STARTPRICEMONTH = ApiKey(key="start_price_month")
 
     # Delta keys (live price vs start-of-day / start-of-month)
-    TOTALCHANGEDAY = ApiKey(key="total_change_day")
-    TOTALCHANGEMONTH = ApiKey(key="total_change_month")
-    CHANGEPRCDAY = ApiKey(key="change_prc_day")
-    CHANGEPRCMONTH = ApiKey(key="change_prc_month")
+    CHANGEDAYAMT = ApiKey(key="change_day_amt")
+    CHANGEMONTHAMT = ApiKey(key="change_month_amt")
+
+    CHANGEDAYPRC = ApiKey(key="change_day_prc")
+    CHANGEMONTHPRC = ApiKey(key="change_month_prc")
+
+    CHANGEDAYPOSITIONVALUE = ApiKey(key="change_day_position_value")
+    CHANGEMONTHPOSITIONVALUE = ApiKey(key="change_month_position_value")
+
 
 

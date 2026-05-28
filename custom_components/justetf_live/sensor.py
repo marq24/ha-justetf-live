@@ -118,7 +118,34 @@ SENSOR_STUBS: Final = [
         suggested_display_precision=2
     )
 ]
-SENSOR_SNAP_STUBS: Final = [
+VALUE_SENSOR_STUBS: Final = [
+    ExtSensorEntityDescription(
+        tag=Tag.POSITIONVALUE,
+        key=Tag.POSITIONVALUE.key,
+        icon="mdi:briefcase",
+        device_class=SensorDeviceClass.MONETARY,
+        state_class = SensorStateClass.TOTAL,
+        native_unit_of_measurement="€",
+        suggested_display_precision=2
+    ),
+    ExtSensorEntityDescription(
+        tag=Tag.CHANGEDAYPOSITIONVALUE,
+        key=Tag.CHANGEDAYPOSITIONVALUE.key,
+        icon="mdi:cash",
+        state_class = SensorStateClass.TOTAL,
+        native_unit_of_measurement="€",
+        suggested_display_precision=2
+    ),
+    ExtSensorEntityDescription(
+        tag=Tag.CHANGEMONTHPOSITIONVALUE,
+        key=Tag.CHANGEMONTHPOSITIONVALUE.key,
+        icon="mdi:cash-multiple",
+        state_class = SensorStateClass.TOTAL,
+        native_unit_of_measurement="€",
+        suggested_display_precision=2
+    )
+]
+SNAPSHOT_SENSOR_STUBS: Final = [
     ExtSensorEntityDescription(
         tag=Tag.STARTPRICEDAY,
         key=Tag.STARTPRICEDAY.key,
@@ -136,34 +163,34 @@ SENSOR_SNAP_STUBS: Final = [
         suggested_display_precision=2,
     ),
 ]
-SENSOR_CHANGE_STUBS: Final = [
+CHANGE_SENSOR_STUBS: Final = [
     ExtSensorEntityDescription(
-        tag=Tag.TOTALCHANGEDAY,
-        key=Tag.TOTALCHANGEDAY.key,
+        tag=Tag.CHANGEDAYAMT,
+        key=Tag.CHANGEDAYAMT.key,
         icon="mdi:calendar-today-outline",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="€",
         suggested_display_precision=2,
     ),
     ExtSensorEntityDescription(
-        tag=Tag.CHANGEPRCDAY,
-        key=Tag.CHANGEPRCDAY.key,
+        tag=Tag.CHANGEDAYPRC,
+        key=Tag.CHANGEDAYPRC.key,
         icon="mdi:calendar-today-outline",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=PERCENTAGE,
         suggested_display_precision=2,
     ),
     ExtSensorEntityDescription(
-        tag=Tag.TOTALCHANGEMONTH,
-        key=Tag.TOTALCHANGEMONTH.key,
+        tag=Tag.CHANGEMONTHAMT,
+        key=Tag.CHANGEMONTHAMT.key,
         icon="mdi:calendar-month-outline",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="€",
         suggested_display_precision=2,
     ),
     ExtSensorEntityDescription(
-        tag=Tag.CHANGEPRCMONTH,
-        key=Tag.CHANGEPRCMONTH.key,
+        tag=Tag.CHANGEMONTHPRC,
+        key=Tag.CHANGEMONTHPRC.key,
         icon="mdi:calendar-month-outline",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=PERCENTAGE,
@@ -225,27 +252,21 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
         for a_stub in SENSOR_STUBS:
             sensors.append(JustETFBaseEntity(isin=isin, isin_name=display_name, coordinator=coordinator, description=a_stub))
 
-        for a_stub in SENSOR_SNAP_STUBS:
+        for a_stub in SNAPSHOT_SENSOR_STUBS:
             a_stub = replace(a_stub, price_source_to_use=price_source_to_use_for_starts_key)
-            sensors.append(JustETFBidSnapshotEntity(isin=isin, isin_name=display_name, coordinator=coordinator, description=a_stub))
+            sensors.append(JustETFValueSnapshotEntity(isin=isin, isin_name=display_name, coordinator=coordinator, description=a_stub))
 
-        for a_stub in SENSOR_CHANGE_STUBS:
+        for a_stub in CHANGE_SENSOR_STUBS:
             a_stub = replace(a_stub, price_source_to_use=price_source_to_use_for_starts_key)
             sensors.append(JustETFDeltaSensorEntity(isin=isin, isin_name=display_name, coordinator=coordinator, description=a_stub))
 
         if quantity > 0:
-            a_stub = ExtSensorEntityDescription(
-                tag=Tag.POSITIONVALUE,
-                key=Tag.POSITIONVALUE.key,
-                quantity=quantity,
-                price_source_to_use=price_source_to_use_for_position_key,
-                icon="mdi:briefcase",
-                suggested_display_precision=2,
-                device_class=SensorDeviceClass.MONETARY,
-                state_class = SensorStateClass.TOTAL,
-                native_unit_of_measurement="€",
-            )
-            sensors.append(JustETFBaseEntity(isin=isin, isin_name=display_name, coordinator=coordinator, description=a_stub))
+            for a_stub in VALUE_SENSOR_STUBS:
+                a_stub = replace(a_stub,
+                                 quantity=quantity,
+                                 price_source_to_use=price_source_to_use_for_starts_key,
+                                 )
+                sensors.append(JustETFBaseEntity(isin=isin, isin_name=display_name, coordinator=coordinator, description=a_stub))
 
 
     async_add_entities(sensors, False)
@@ -356,6 +377,21 @@ class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
                 else:
                     if self.tag == Tag.POSITIONVALUE:
                         val = data.get(self.entity_description.price_source_to_use, None)
+                    elif self.tag in (Tag.CHANGEDAYPOSITIONVALUE, Tag.CHANGEMONTHPOSITIONVALUE):
+                        # we need the DAY/MONTH change amount value (to be able to calculate the position value)
+                        if self.tag == Tag.CHANGEDAYPOSITIONVALUE:
+                            a_entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{camel_to_snake(Tag.CHANGEDAYAMT.key)}".lower()
+                        else:
+                            a_entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{camel_to_snake(Tag.CHANGEMONTHAMT.key)}".lower()
+
+                        price_change_amount_state = self.hass.states.get(a_entity_id)
+                        if price_change_amount_state is None or price_change_amount_state.state in INVALID_STATES:
+                            return None
+                        try:
+                            val = float(price_change_amount_state.state)
+                        except (TypeError, ValueError):
+                            return None
+                        #_LOGGER.debug(f"Retrieved price change amount for {self.tag.key} with isin {self.isin}: {val}")
                     else:
                         val = data.get(self.tag.key, None)
 
@@ -422,7 +458,7 @@ class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
             return name
 
 
-class JustETFBidSnapshotEntity(JustETFBaseEntity):
+class JustETFValueSnapshotEntity(JustETFBaseEntity):
     """Stores bid snapshots for UTC 02:00 daily/monthly periods and restores on restart."""
 
     def __init__(
@@ -441,12 +477,14 @@ class JustETFBidSnapshotEntity(JustETFBaseEntity):
         self._snapshot_value: float | None = None
         self._snapshot_period_id: str | None = None
         self._snapshot_captured_at: str | None = None
+        self._last_live_value: float | None = None
+        self._last_live_ts: datetime | None = None
+
         if hasattr(description, "price_source_to_use") and description.price_source_to_use is not None:
             self._price_source_entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{description.price_source_to_use}".lower()
         else:
             self._price_source_entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{Tag.BID.key}".lower()
-        self._last_live_value: float | None = None
-        self._last_live_ts: datetime | None = None
+
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
@@ -679,30 +717,29 @@ class JustETFDeltaSensorEntity(JustETFBaseEntity):
         else:
             self._price_source_key = Tag.BID.key
 
-        if description.tag in (Tag.TOTALCHANGEDAY, Tag.CHANGEPRCDAY):
+        if description.tag in (Tag.CHANGEDAYAMT, Tag.CHANGEDAYPRC):
             self._start_entity_id = f"{Platform.SENSOR}.jetf_{isin}_{camel_to_snake(Tag.STARTPRICEDAY.key)}".lower()
-            self._is_percentage = description.tag == Tag.CHANGEPRCDAY
+            self._is_percentage = description.tag == Tag.CHANGEDAYPRC
         else:
             self._start_entity_id = f"{Platform.SENSOR}.jetf_{isin}_{camel_to_snake(Tag.STARTPRICEMONTH.key)}".lower()
-            self._is_percentage = description.tag == Tag.CHANGEPRCMONTH
+            self._is_percentage = description.tag == Tag.CHANGEMONTHPRC
 
     @property
     def native_value(self):
         if self.coordinator.data is None:
             return None
 
-        data = self.coordinator.data.get(self.isin, {})
-        current_value = data.get(self._price_source_key)
-        if current_value is None:
+        current_price_value = self.coordinator.data.get(self.isin, {}).get(self._price_source_key)
+        if current_price_value is None:
             return None
 
-        baseline_state = self.hass.states.get(self._start_entity_id)
-        if baseline_state is None or baseline_state.state in INVALID_STATES:
+        baseline_price_state = self.hass.states.get(self._start_entity_id)
+        if baseline_price_state is None or baseline_price_state.state in INVALID_STATES:
             return None
 
         try:
-            current_value_f = float(current_value)
-            baseline_value_f = float(baseline_state.state)
+            current_value_f = float(current_price_value)
+            baseline_value_f = float(baseline_price_state.state)
         except (TypeError, ValueError):
             return None
 

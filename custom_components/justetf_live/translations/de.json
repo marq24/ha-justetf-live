@@ -95,10 +95,12 @@
       "quote52weekhigh": { "name": "52W Hoch" },
       "start_price_day": { "name": "Startpreis Tag" },
       "start_price_month": { "name": "Startpreis Monat" },
-      "total_change_day": { "name": "Änderung Tag" },
-      "change_prc_day": { "name": "Änderung Tag %" },
-      "total_change_month": { "name": "Änderung Monat" },
-      "change_prc_month": { "name": "Änderung Monat %" },
+      "change_day_amt": { "name": "Änderung Tag" },
+      "change_day_prc": { "name": "Änderung Tag %" },
+      "change_day_position_value": { "name": "Änderung Tag Positionswert" },
+      "change_month_amt": { "name": "Änderung Monat" },
+      "change_month_prc": { "name": "Änderung Monat %" },
+      "change_month_position_value": { "name": "Änderung Monat Positionswert" },
       "timestamp": { "name": "Letztes Update" }
     }
   }
