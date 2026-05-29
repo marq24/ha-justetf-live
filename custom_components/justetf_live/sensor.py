@@ -459,7 +459,7 @@ class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
 
 
 class JustETFValueSnapshotEntity(JustETFBaseEntity):
-    """Stores bid snapshots for UTC 02:00 daily/monthly periods and restores on restart."""
+    """Stores bid snapshots for UTC 00:00 daily/monthly periods and restores on restart."""
 
     def __init__(
         self,
@@ -548,44 +548,22 @@ class JustETFValueSnapshotEntity(JustETFBaseEntity):
 
         # Tag.TIMESTAMP is already UTC (set by the bridge parser)
         ts_utc = ts
-        at_2_utc = time(2, 0)
-        period_id: str | None = None
-        period_start_utc: datetime | None = None
 
         if self._monthly:
-            # Monthly period is always active:
-            # - current month from day 1, 02:00 UTC onward
-            # - previous month when still before 02:00 UTC on day 1
-            if ts_utc.day == 1 and ts_utc.time() < at_2_utc:
-                if ts_utc.month == 1:
-                    target_year = ts_utc.year - 1
-                    target_month = 12
-                else:
-                    target_year = ts_utc.year
-                    target_month = ts_utc.month - 1
-            else:
-                target_year = ts_utc.year
-                target_month = ts_utc.month
-
+            target_year = ts_utc.year
+            target_month = ts_utc.month
             period_id = f"{target_year:04d}-{target_month:02d}"
-            period_start_utc = datetime(target_year, target_month, 1, 2, 0, tzinfo=timezone.utc)
+            period_start_utc = datetime(target_year, target_month, 1, 0, 0, tzinfo=timezone.utc)
         else:
-            if ts_utc.time() >= at_2_utc:
-                period_id = ts_utc.date().isoformat()
-                period_start_utc = datetime.combine(ts_utc.date(), at_2_utc, tzinfo=timezone.utc)
-
-        # Snapshot not due yet for this update; still keep last known live value.
-        if period_id is None or period_start_utc is None:
-            self._last_live_value = price_as_float
-            self._last_live_ts = ts_utc
-            return
+            period_id = ts_utc.date().isoformat()
+            period_start_utc = datetime.combine(ts_utc.date(), time(0, 0), tzinfo=timezone.utc)
 
         if period_id == self._snapshot_period_id:
             self._last_live_value = price_as_float
             self._last_live_ts = ts_utc
             return
 
-        # Prefer last known value at/before 02:00 UTC; fallback to first after 02:00 UTC.
+        # Prefer last known value at/before 00:00 UTC; fallback to first after 00:00 UTC.
         capture_value = price_as_float
         capture_ts = ts_utc
         if (
@@ -674,31 +652,17 @@ class JustETFValueSnapshotEntity(JustETFBaseEntity):
         self._last_live_ts = changed_utc
 
     def _target_period_for_now(self, now_utc: datetime) -> tuple[str, datetime] | None:
-        at_2_utc = time(2, 0)
-
         if self._monthly:
-            if now_utc.day == 1 and now_utc.time() < at_2_utc:
-                if now_utc.month == 1:
-                    target_year = now_utc.year - 1
-                    target_month = 12
-                else:
-                    target_year = now_utc.year
-                    target_month = now_utc.month - 1
-            else:
-                target_year = now_utc.year
-                target_month = now_utc.month
-
+            target_year = now_utc.year
+            target_month = now_utc.month
             period_id = f"{target_year:04d}-{target_month:02d}"
-            period_start = datetime(target_year, target_month, 1, 2, 0, tzinfo=timezone.utc)
+            period_start = datetime(target_year, target_month, 1, 0, 0, tzinfo=timezone.utc)
             return period_id, period_start
 
-        if now_utc.time() < at_2_utc:
-            target_date = (now_utc - timedelta(days=1)).date()
-        else:
-            target_date = now_utc.date()
+        target_date = now_utc.date()
 
         period_id = target_date.isoformat()
-        period_start = datetime.combine(target_date, at_2_utc, tzinfo=timezone.utc)
+        period_start = datetime.combine(target_date, time(0, 0), tzinfo=timezone.utc)
         return period_id, period_start
 
 
