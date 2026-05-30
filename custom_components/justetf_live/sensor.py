@@ -33,7 +33,8 @@ from .const import (
     CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START,
     DEFAULT_QUANTITY,
     CONF_ETFOBJECT,
-    DEFAULT_PRICE_TO_USE_AS_SOURCE,
+    DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE,
+    DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START,
     PRICE_TO_USE_AS_SOURCE_OPTIONS,
 )
 
@@ -228,19 +229,19 @@ def _get_name_from_config(cfg: dict) -> str:
     return None
 
 
-def _get_price_source_to_use_key_from_config(config_entry: ConfigEntry, key) -> str:
-    price_source_to_use = config_entry.data.get(key, DEFAULT_PRICE_TO_USE_AS_SOURCE)
+def _get_price_source_to_use_key_from_config(config_entry: ConfigEntry, key, default) -> str:
+    price_source_to_use = config_entry.data.get(key, default)
     if price_source_to_use in PRICE_TO_USE_AS_SOURCE_OPTIONS:
         return price_source_to_use
-    return DEFAULT_PRICE_TO_USE_AS_SOURCE
+    return default
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
 
     coordinator: JustETFDataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
     isins: list[str] = config_entry.data.get(CONF_ISINS, [])
     isin_configs: dict[str, dict] = config_entry.data.get(CONF_ISIN_CONFIG, {})
-    price_source_to_use_for_position_key = _get_price_source_to_use_key_from_config(config_entry, key=CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE)
-    price_source_to_use_for_starts_key = _get_price_source_to_use_key_from_config(config_entry, key=CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START)
+    price_source_to_use_for_starts_key = _get_price_source_to_use_key_from_config(config_entry, key=CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START, default=DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START)
+    price_source_to_use_for_position_key = _get_price_source_to_use_key_from_config(config_entry, key=CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE, default=DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE)
 
     sensors: list[JustETFBaseEntity] = []
 

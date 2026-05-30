@@ -31,7 +31,8 @@ from custom_components.justetf_live.const import (
     SAVE_AND_CLOSE,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_QUANTITY,
-    DEFAULT_PRICE_TO_USE_AS_SOURCE,
+    DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE,
+    DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START,
     PRICE_TO_USE_AS_SOURCE_OPTIONS,
 )
 from custom_components.justetf_live.pyjustetflive_ha import JustETFBridge
@@ -66,7 +67,7 @@ async def _async_position_value_price_selector(hass) -> SelectSelector:
 def _get_valid_source_value_price(value: Any) -> str:
     if value in PRICE_TO_USE_AS_SOURCE_OPTIONS:
         return value
-    return DEFAULT_PRICE_TO_USE_AS_SOURCE
+    return DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -129,8 +130,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({
                 vol.Required(CONF_ISIN): str,
                 vol.Optional(CONF_NAME, default=""): str,
-                vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START, default=DEFAULT_PRICE_TO_USE_AS_SOURCE): await _async_position_value_price_selector(self.hass),
-                vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE, default=DEFAULT_PRICE_TO_USE_AS_SOURCE): await _async_position_value_price_selector(self.hass),
+                vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START, default=DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START): await _async_position_value_price_selector(self.hass),
+                vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE, default=DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE): await _async_position_value_price_selector(self.hass),
                 vol.Required(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(int, vol.Range(min=1, max=360)),
                 vol.Optional(CONF_QUANTITY, default=DEFAULT_QUANTITY): vol.All(vol.Coerce(float), vol.Range(min=0)),
             }),
