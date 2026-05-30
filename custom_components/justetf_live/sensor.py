@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from dataclasses import dataclass, replace
 from datetime import datetime, time, timezone, timedelta
@@ -41,8 +42,7 @@ _LOGGER = logging.getLogger(__name__)
 SNAPSHOT_ATTR_PERIOD_ID: Final = "snapshot_period_id"
 SNAPSHOT_ATTR_CAPTURED_AT: Final = "snapshot_captured_at"
 INVALID_STATES: Final = {"unknown", "unavailable", "None", None}
-SNAPSHOT_HISTORY_LOOKBACK: Final = timedelta(hours=12)
-
+SNAPSHOT_HISTORY_LOOKBACK: Final = timedelta(hours = 24)
 
 @dataclass(frozen=True)
 class ExtSensorEntityDescription(SensorEntityDescription):
@@ -223,7 +223,7 @@ def _get_name_from_config(cfg: dict) -> str:
                 return etf_meta_data.get("name", None)
 
     except (TypeError, ValueError) as ex:
-        _LOGGER.debug(f"_get_name_from_config() caused: {type(ex).__name__} - {ex}")
+        _LOGGER.debug(f"_get_name_from_config(): caused {type(ex).__name__} - {ex}")
 
     return None
 
@@ -254,7 +254,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
         for a_stub in SNAPSHOT_SENSOR_STUBS:
             a_stub = replace(a_stub, price_source_to_use=price_source_to_use_for_starts_key)
-            sensors.append(JustETFValueSnapshotEntity(isin=isin, isin_name=display_name, coordinator=coordinator, description=a_stub))
+            sensors.append(JustETFSnapshotValueEntity(isin=isin, isin_name=display_name, coordinator=coordinator, description=a_stub))
 
         for a_stub in CHANGE_SENSOR_STUBS:
             a_stub = replace(a_stub, price_source_to_use=price_source_to_use_for_starts_key)
@@ -264,7 +264,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
             for a_stub in VALUE_SENSOR_STUBS:
                 a_stub = replace(a_stub,
                                  quantity=quantity,
-                                 price_source_to_use=price_source_to_use_for_starts_key,
+                                 price_source_to_use=price_source_to_use_for_position_key,
                                  )
                 sensors.append(JustETFBaseEntity(isin=isin, isin_name=display_name, coordinator=coordinator, description=a_stub))
 
@@ -308,7 +308,7 @@ class CustomFriendlyNameEntity(CoordinatorEntity):
                     break
 
             if attr is None:
-                _LOGGER.warning(f"Could not find friendly name attribute in state result for {self.entity_id}")
+                _LOGGER.warning(f"_Entity__async_calculate_state(): Could not find friendly name attribute in state result for {self.entity_id}")
                 return result
 
             # Only modify if we found the attr dict and it differs
@@ -401,7 +401,7 @@ class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
                     return val
 
         except BaseException as ex:
-            _LOGGER.info(f"Error fetching native value for {self.tag.key} with isin {self.isin}: {type(ex).__name__} - {ex}")
+            _LOGGER.info(f"native_value(): Error fetching native value for {self.tag.key} with isin {self.isin}: {type(ex).__name__} - {ex}")
 
         return None
 
@@ -442,7 +442,7 @@ class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
             if hasattr(self, 'use_device_name') and self.use_device_name:
                 return device_name
             else:
-                _LOGGER.warning(f"Missing attribute 'use_device_name' for {self.tag.key} - probably translation is missing")
+                _LOGGER.warning(f"_friendly_name_internal(): Missing attribute 'use_device_name' for {self.tag.key} - probably translation is missing")
                 return self.tag.key
 
         # check if there is a user has specified entity name (overwritten)
@@ -458,7 +458,7 @@ class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
             return name
 
 
-class JustETFValueSnapshotEntity(JustETFBaseEntity):
+class JustETFSnapshotValueEntity(JustETFBaseEntity):
     """Stores bid snapshots for UTC 00:00 daily/monthly periods and restores on restart."""
 
     def __init__(
@@ -477,8 +477,7 @@ class JustETFValueSnapshotEntity(JustETFBaseEntity):
         self._snapshot_value: float | None = None
         self._snapshot_period_id: str | None = None
         self._snapshot_captured_at: str | None = None
-        self._last_live_value: float | None = None
-        self._last_live_ts: datetime | None = None
+        self._snapshot_update_task: asyncio.Task | None = None
 
         if hasattr(description, "price_source_to_use") and description.price_source_to_use is not None:
             self._price_source_entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{description.price_source_to_use}".lower()
@@ -501,9 +500,7 @@ class JustETFValueSnapshotEntity(JustETFBaseEntity):
                 self._snapshot_period_id = last_state.attributes.get(SNAPSHOT_ATTR_PERIOD_ID)
                 self._snapshot_captured_at = last_state.attributes.get(SNAPSHOT_ATTR_CAPTURED_AT)
 
-        await self._async_backfill_from_history_if_needed()
-
-        self._try_capture_snapshot()
+        await self._async_update_snapshot_from_history_if_needed()
 
     @property
     def available(self):
@@ -511,7 +508,6 @@ class JustETFValueSnapshotEntity(JustETFBaseEntity):
 
     @property
     def native_value(self):
-        self._try_capture_snapshot()
         return self._snapshot_value
 
     @property
@@ -524,63 +520,32 @@ class JustETFValueSnapshotEntity(JustETFBaseEntity):
         return attrs
 
     def _handle_coordinator_update(self) -> None:
-        self._try_capture_snapshot()
+        self._request_snapshot_update_if_needed()
         super()._handle_coordinator_update()
 
-    def _try_capture_snapshot(self) -> None:
-        if self.coordinator.data is None:
+    def _request_snapshot_update_if_needed(self) -> None:
+        if not self._snapshot_needs_update():
             return
 
-        data = self.coordinator.data.get(self.isin, {})
-        if hasattr(self.entity_description, "price_source_to_use") and self.entity_description.price_source_to_use is not None:
-            price = data.get(self.entity_description.price_source_to_use)
-        else:
-            price = data.get(Tag.BID.key)
-
-        ts = data.get(Tag.TIMESTAMP.key)
-        if price is None or ts is None or not isinstance(ts, datetime):
+        if self._snapshot_update_task is not None and not self._snapshot_update_task.done():
             return
 
-        try:
-            price_as_float = float(price)
-        except (TypeError, ValueError):
-            return
+        self._snapshot_update_task = self.hass.async_create_task(
+            self._async_update_snapshot_from_history_if_needed()
+        )
 
-        # Tag.TIMESTAMP is already UTC (set by the bridge parser)
-        ts_utc = ts
+    def _snapshot_needs_update(self) -> bool:
+        now_utc = datetime.now(timezone.utc)
+        target = self._target_period_for_now(now_utc)
+        if target is None:
+            return False
 
-        if self._monthly:
-            target_year = ts_utc.year
-            target_month = ts_utc.month
-            period_id = f"{target_year:04d}-{target_month:02d}"
-            period_start_utc = datetime(target_year, target_month, 1, 0, 0, tzinfo=timezone.utc)
-        else:
-            period_id = ts_utc.date().isoformat()
-            period_start_utc = datetime.combine(ts_utc.date(), time(0, 0), tzinfo=timezone.utc)
+        period_id, period_start_utc = target
+        return now_utc > period_start_utc and (
+            self._snapshot_period_id != period_id or self._snapshot_value is None
+        )
 
-        if period_id == self._snapshot_period_id:
-            self._last_live_value = price_as_float
-            self._last_live_ts = ts_utc
-            return
-
-        # Prefer last known value at/before 00:00 UTC; fallback to first after 00:00 UTC.
-        capture_value = price_as_float
-        capture_ts = ts_utc
-        if (
-            self._last_live_value is not None
-            and self._last_live_ts is not None
-            and self._last_live_ts <= period_start_utc <= ts_utc
-        ):
-            capture_value = self._last_live_value
-            capture_ts = self._last_live_ts
-
-        self._snapshot_value = capture_value
-        self._snapshot_period_id = period_id
-        self._snapshot_captured_at = capture_ts.isoformat()
-        self._last_live_value = price_as_float
-        self._last_live_ts = ts_utc
-
-    async def _async_backfill_from_history_if_needed(self) -> None:
+    async def _async_update_snapshot_from_history_if_needed(self) -> None:
         now_utc = datetime.now(timezone.utc)
         target = self._target_period_for_now(now_utc)
         if target is None:
@@ -595,6 +560,8 @@ class JustETFValueSnapshotEntity(JustETFBaseEntity):
 
         recorder = get_instance(self.hass)
         history_start = period_start_utc - SNAPSHOT_HISTORY_LOOKBACK
+        _LOGGER.debug(f"_async_update_snapshot_from_history_if_needed(): backfill for {self.entity_id} ({period_id}) for period-ts: {period_start_utc} history_lookback: {history_start}")
+
         try:
             history = await recorder.async_add_executor_job(
                 state_changes_during_period,
@@ -606,7 +573,7 @@ class JustETFValueSnapshotEntity(JustETFBaseEntity):
                 False,
             )
         except BaseException as ex:
-            _LOGGER.debug(f"History backfill failed for {self.entity_id} ({period_id}): {type(ex).__name__} - {ex}")
+            _LOGGER.debug(f"_async_update_snapshot_from_history_if_needed(): backfill failed for {self.entity_id} ({period_id}): {type(ex).__name__} - {ex}")
             return
 
         states = []
@@ -616,6 +583,7 @@ class JustETFValueSnapshotEntity(JustETFBaseEntity):
             states = history
 
         selected_state = None
+        selected_distance = None
         for a_state in states:
             if a_state.state in INVALID_STATES:
                 continue
@@ -624,14 +592,11 @@ class JustETFValueSnapshotEntity(JustETFBaseEntity):
             if changed is None:
                 continue
             changed_utc = changed.astimezone(timezone.utc)
+            distance = abs((changed_utc - period_start_utc).total_seconds())
 
-            if changed_utc <= period_start_utc:
+            if selected_distance is None or distance < selected_distance:
                 selected_state = a_state
-                continue
-
-            if selected_state is None:
-                selected_state = a_state
-            break
+                selected_distance = distance
 
         if selected_state is None:
             return
@@ -648,22 +613,22 @@ class JustETFValueSnapshotEntity(JustETFBaseEntity):
         self._snapshot_value = a_value
         self._snapshot_period_id = period_id
         self._snapshot_captured_at = changed_utc.isoformat()
-        self._last_live_value = a_value
-        self._last_live_ts = changed_utc
+
+        if self.hass is not None:
+            self.async_write_ha_state()
 
     def _target_period_for_now(self, now_utc: datetime) -> tuple[str, datetime] | None:
         if self._monthly:
             target_year = now_utc.year
             target_month = now_utc.month
-            period_id = f"{target_year:04d}-{target_month:02d}"
+            period_id = f"spid-{target_year:04d}-{target_month:02d}"
             period_start = datetime(target_year, target_month, 1, 0, 0, tzinfo=timezone.utc)
             return period_id, period_start
-
-        target_date = now_utc.date()
-
-        period_id = target_date.isoformat()
-        period_start = datetime.combine(target_date, time(0, 0), tzinfo=timezone.utc)
-        return period_id, period_start
+        else:
+            target_date = now_utc.date()
+            period_id = f"spid-{target_date.isoformat()}"
+            period_start = datetime.combine(target_date, time(0, 0), tzinfo=timezone.utc)
+            return period_id, period_start
 
 
 class JustETFDeltaSensorEntity(JustETFBaseEntity):
