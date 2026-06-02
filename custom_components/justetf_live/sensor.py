@@ -482,8 +482,10 @@ class JustETFSnapshotValueEntity(JustETFBaseEntity):
 
         if hasattr(description, "price_source_to_use") and description.price_source_to_use is not None:
             self._price_source_entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{description.price_source_to_use}".lower()
+            self._period_id_key = f"{description.price_source_to_use}"
         else:
             self._price_source_entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{Tag.BID.key}".lower()
+            self._period_id_key = f"{Tag.BID.key}"
 
 
     async def async_added_to_hass(self):
@@ -622,12 +624,12 @@ class JustETFSnapshotValueEntity(JustETFBaseEntity):
         if self._monthly:
             target_year = now_utc.year
             target_month = now_utc.month
-            period_id = f"spid-{target_year:04d}-{target_month:02d}"
+            period_id = f"spid.{self._period_id_key}-{target_year:04d}-{target_month:02d}"
             period_start = datetime(target_year, target_month, 1, 0, 0, tzinfo=timezone.utc)
             return period_id, period_start
         else:
             target_date = now_utc.date()
-            period_id = f"spid-{target_date.isoformat()}"
+            period_id = f"spid.{self._period_id_key}-{target_date.isoformat()}"
             period_start = datetime.combine(target_date, time(0, 0), tzinfo=timezone.utc)
             return period_id, period_start
 

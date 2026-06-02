@@ -49,19 +49,21 @@ class JustETFBridge:
         self.coordinator = None
         self.web_session = web_session
         self.lang_map = None
+        # EUR, USD, CHF, GBR
+        CURRENCY = "EUR"
         if lang in TRANSLATIONS:
             self.lang_map = TRANSLATIONS[lang]
         else:
             self.lang_map = TRANSLATIONS["en"]
 
         if isins is not None:
-            self.ws_url = f"wss://{WS_BASE}/?subscription=trend&parameters=isins:{','.join(isins)}/currency:EUR/language:{lang.lower()}"
+            self.ws_url = f"wss://{WS_BASE}/?subscription=trend&parameters=isins:{','.join(isins)}/currency:{CURRENCY}/language:{lang.lower()}"
         else:
             _LOGGER.error("JustETFBridge(): no ISINs provided!")
             return
 
-        self.req_url_meta = f"https://{REQ_BASE}/cards?locale={lang.lower()}&currency=EUR&isin={A_ISIN_PLACEHOLDER}"
-        self.req_url_details = f"https://{REQ_BASE}/{A_ISIN_PLACEHOLDER}/quote?currency=EUR&locale={lang.lower()}"
+        self.req_url_meta = f"https://{REQ_BASE}/cards?locale={lang.lower()}&currency={CURRENCY}&isin={A_ISIN_PLACEHOLDER}"
+        self.req_url_details = f"https://{REQ_BASE}/{A_ISIN_PLACEHOLDER}/quote?currency={CURRENCY}&locale={lang.lower()}"
         self.headers = {
             "User-Agent": USER_AGENT,
         }
