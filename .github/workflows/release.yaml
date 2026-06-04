@@ -7,7 +7,7 @@ on:
 
 jobs:
   release:
-    name: Release senec
+    name: Release justetf_live
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -35,11 +35,11 @@ jobs:
       - name: 📦 Create zipped release package
         shell: bash
         run: |
-          cd "${{ github.workspace }}/custom_components/senec"
+          cd "${{ github.workspace }}/custom_components/justetf_live"
           zip senec.zip -r ./
 
       # Step 5: Upload ZIP as a release asset (for HACS)
       - name: ⬆️ Upload zip to release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ github.workspace }}/custom_components/senec/senec.zip
+          files: ${{ github.workspace }}/custom_components/justetf_live/justetf_live.zip
