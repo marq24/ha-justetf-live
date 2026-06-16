@@ -55,7 +55,14 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
     coordinator = JustETFDataUpdateCoordinator(hass, config_entry)
     backup_key = f"BACKUP_{config_entry.entry_id}"
     if backup_key in hass.data[DOMAIN]:
-        coordinator.init_bridge(hass.data[DOMAIN][backup_key])
+        restore_data_dict = hass.data[DOMAIN].get(backup_key, {})
+
+        # we must check if the count of the new isins (that are configured) is the same as the
+        # ones that we just have restored from the "backup"...
+        last_count = restore_data_dict.get("count", 0) if restore_data_dict is not None else 0
+        if last_count == coordinator.isin_count:
+            coordinator.init_bridge(restore_data_dict)
+
         hass.data[DOMAIN].pop(backup_key)
 
     await coordinator.async_refresh()
@@ -191,6 +198,7 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
         # calculating the overall investment for the whole portfolio...
         isin_configs: dict[str, dict] = config_entry.data.get(CONF_ISIN_CONFIG, {})
 
+        self.isin_count = len(isin_configs.keys())
         self.invested_isins = {}
         self.price_to_use = config_entry.data.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE, DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE)
 

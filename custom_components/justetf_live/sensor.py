@@ -232,7 +232,7 @@ PORTFOLIO_SENSORS_STUB: Final =[
     ExtSensorEntityDescription(
         tag=Tag.TOTAL_CHANGE,
         key=Tag.TOTAL_CHANGE.key,
-        icon="mdi:briefcase-check",
+        icon="mdi:chart-line",
         #device_class = SensorDeviceClass.MONETARY,
         state_class = SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="€",

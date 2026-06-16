@@ -83,16 +83,17 @@ class JustETFBridge:
 
 
     def init_bridge(self, data:dict):
-        self._details_data = data.get("details", {})
-        self._DETAILS_LAST_UPDATE = data.get("last_update", 0)
-        self._DETAILS_RUN_DATE = data.get("run_date", None)
-
+        if data is None:
+            self._details_data = data.get("details", {})
+            self._DETAILS_LAST_UPDATE = data.get("last_update", 0)
+            self._DETAILS_RUN_DATE = data.get("run_date", None)
 
     def get_backup_data(self):
         return {
             "details": self._details_data,
             "last_update": self._DETAILS_LAST_UPDATE,
             "run_date": self._DETAILS_RUN_DATE,
+            "count": len(self._details_data.keys()) if self._details_data is not None else 0,
         }
 
 
