@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           cd "${{ github.workspace }}/custom_components/justetf_live"
-          zip senec.zip -r ./
+          zip justetf_live.zip -r ./
 
       # Step 5: Upload ZIP as a release asset (for HACS)
       - name: ⬆️ Upload zip to release
