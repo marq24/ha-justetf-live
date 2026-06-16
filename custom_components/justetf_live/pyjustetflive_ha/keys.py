@@ -22,7 +22,7 @@ def camel_to_snake(a_key: str):
 class ApiKey(NamedTuple):
     key: str
     keys: list[str] | None = None
-
+    attribute: str  | None = None
 
 class Tag(ApiKey, Enum):
 
@@ -73,6 +73,7 @@ class Tag(ApiKey, Enum):
 
     # if a quantity is provided, add a value sensor
     POSITIONVALUE = ApiKey(key="position_value")
+    POSITIONDEVELOPMENT = ApiKey(key="position_change")
 
     # Snapshot keys (derived sensors)
     STARTPRICEDAY = ApiKey(key="start_price_day")
@@ -88,5 +89,10 @@ class Tag(ApiKey, Enum):
     CHANGEDAYPOSITIONVALUE = ApiKey(key="change_day_position_value")
     CHANGEMONTHPOSITIONVALUE = ApiKey(key="change_month_position_value")
 
+    # the portfolio Tags (...)
+    TOTAL_INVESTMENT = ApiKey(key="total_invest", attribute="total_invest")
+    TOTAL_VALUE = ApiKey(key="total_value", attribute="total_value")
+    TOTAL_CHANGE = ApiKey(key="total_change", attribute="total_change")
+    TOTAL_RETURN = ApiKey(key="total_return", attribute="total_return")
 
 

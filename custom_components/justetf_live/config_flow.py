@@ -22,6 +22,7 @@ from custom_components.justetf_live.const import (
     CONF_NAME,
     CONF_SCAN_INTERVAL,
     CONF_QUANTITY,
+    CONF_INVEST,
     CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE,
     CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START,
     CONF_ETFOBJECT,
@@ -31,6 +32,7 @@ from custom_components.justetf_live.const import (
     SAVE_AND_CLOSE,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_QUANTITY,
+    DEFAULT_INVEST,
     DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE,
     DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START,
     PRICE_TO_USE_AS_SOURCE_OPTIONS,
@@ -98,6 +100,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             name = (user_input.get(CONF_NAME) or "").strip()
             scan_interval = int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
             quantity = float(user_input.get(CONF_QUANTITY, DEFAULT_QUANTITY))
+            invest = float(user_input.get(CONF_INVEST, DEFAULT_INVEST))
             start_value_price = _get_valid_source_value_price(user_input.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START))
             position_value_price = _get_valid_source_value_price(user_input.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE))
 
@@ -117,6 +120,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             isin: {
                                 CONF_NAME: name if len(name) > 0 else default_name,
                                 CONF_QUANTITY: quantity,
+                                CONF_INVEST: invest,
                                 CONF_ETFOBJECT: etf_obj,
                             }
                         },
@@ -134,6 +138,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE, default=DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE): await _async_position_value_price_selector(self.hass),
                 vol.Required(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(int, vol.Range(min=1, max=360)),
                 vol.Optional(CONF_QUANTITY, default=DEFAULT_QUANTITY): vol.All(vol.Coerce(float), vol.Range(min=0)),
+                vol.Optional(CONF_INVEST, default=DEFAULT_INVEST): vol.All(vol.Coerce(float), vol.Range(min=0)),
             }),
             errors=errors,
         )
@@ -304,6 +309,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if is_ok:
                     name = (user_input.get(CONF_NAME) or "").strip()
                     quantity = float(user_input.get(CONF_QUANTITY, DEFAULT_QUANTITY))
+                    invest = float(user_input.get(CONF_INVEST, DEFAULT_INVEST))
 
                     new_data = dict(self._existing_entry.data)
                     new_data[CONF_ISINS] = existing_isins + [isin]
@@ -311,6 +317,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     new_data[CONF_ISIN_CONFIG][isin] = {
                         CONF_NAME: name if len(name) > 0 else default_name,
                         CONF_QUANTITY: quantity,
+                        CONF_INVEST: invest,
                         CONF_ETFOBJECT: etf_obj
                     }
 
@@ -330,6 +337,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_ISIN): str,
                 vol.Optional(CONF_NAME, default=""): str,
                 vol.Optional(CONF_QUANTITY, default=DEFAULT_QUANTITY): vol.All(vol.Coerce(float), vol.Range(min=0)),
+                vol.Optional(CONF_INVEST, default=DEFAULT_INVEST): vol.All(vol.Coerce(float), vol.Range(min=0)),
             }),
             errors=errors,
         )
@@ -347,12 +355,14 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             name = (user_input.get(CONF_NAME) or "").strip()
             quantity = float(user_input.get(CONF_QUANTITY, DEFAULT_QUANTITY))
+            invest = float(user_input.get(CONF_INVEST, DEFAULT_INVEST))
 
             new_data = dict(self._existing_entry.data)
             new_data[CONF_ISIN_CONFIG] = dict(new_data.get(CONF_ISIN_CONFIG, {}))
             new_data[CONF_ISIN_CONFIG][isin] = {
                 CONF_NAME: name,
-                CONF_QUANTITY: quantity
+                CONF_QUANTITY: quantity,
+                CONF_INVEST: invest,
             }
 
             self.hass.config_entries.async_update_entry(
@@ -368,6 +378,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({
                 vol.Optional(CONF_NAME, default=cfg.get(CONF_NAME, "")): str,
                 vol.Optional(CONF_QUANTITY, default=float(cfg.get(CONF_QUANTITY, DEFAULT_QUANTITY)),): vol.All(vol.Coerce(float), vol.Range(min=0)),
+                vol.Optional(CONF_INVEST, default=float(cfg.get(CONF_INVEST, DEFAULT_INVEST)),): vol.All(vol.Coerce(float), vol.Range(min=0)),
             }),
             description_placeholders={CONF_ISIN: isin},
         )

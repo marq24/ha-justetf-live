@@ -29,9 +29,11 @@ from .const import (
     CONF_ISIN_CONFIG,
     CONF_NAME,
     CONF_QUANTITY,
+    CONF_INVEST,
     CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE,
     CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START,
     DEFAULT_QUANTITY,
+    DEFAULT_INVEST,
     CONF_ETFOBJECT,
     DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE,
     DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START,
@@ -49,6 +51,7 @@ SNAPSHOT_HISTORY_LOOKBACK: Final = timedelta(hours = 24)
 class ExtSensorEntityDescription(SensorEntityDescription):
     tag: Tag | None = None
     quantity: float | None = None
+    invest: float | None = None
     price_source_to_use: str | None = None
 
 SENSOR_STUBS: Final = [
@@ -144,6 +147,14 @@ VALUE_SENSOR_STUBS: Final = [
         state_class = SensorStateClass.TOTAL,
         native_unit_of_measurement="€",
         suggested_display_precision=2
+    ),
+    ExtSensorEntityDescription(
+        tag=Tag.POSITIONDEVELOPMENT,
+        key=Tag.POSITIONDEVELOPMENT.key,
+        icon="mdi:briefcase-check",
+        state_class = SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="€",
+        suggested_display_precision=2
     )
 ]
 SNAPSHOT_SENSOR_STUBS: Final = [
@@ -199,6 +210,44 @@ CHANGE_SENSOR_STUBS: Final = [
     ),
 ]
 
+PORTFOLIO_SENSORS_STUB: Final =[
+    ExtSensorEntityDescription(
+        tag=Tag.TOTAL_INVESTMENT,
+        key=Tag.TOTAL_INVESTMENT.key,
+        icon="mdi:cash-multiple",
+        #device_class = SensorDeviceClass.MONETARY,
+        state_class = SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="€",
+        suggested_display_precision=2
+    ),
+    ExtSensorEntityDescription(
+        tag=Tag.TOTAL_VALUE,
+        key=Tag.TOTAL_VALUE.key,
+        icon="mdi:briefcase",
+        #device_class = SensorDeviceClass.MONETARY,
+        state_class = SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="€",
+        suggested_display_precision=2
+    ),
+    ExtSensorEntityDescription(
+        tag=Tag.TOTAL_CHANGE,
+        key=Tag.TOTAL_CHANGE.key,
+        icon="mdi:briefcase-check",
+        #device_class = SensorDeviceClass.MONETARY,
+        state_class = SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="€",
+        suggested_display_precision=2
+    ),
+    ExtSensorEntityDescription(
+        tag=Tag.TOTAL_RETURN,
+        key=Tag.TOTAL_RETURN.key,
+        icon="mdi:percent-box-outline",
+        state_class = SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=PERCENTAGE,
+        suggested_display_precision=2
+    )
+]
+
 USE_NEW_FRIENDLY_NAME = AwesomeVersion(HA_VERSION) >= AwesomeVersion("2026.2.0")
 
 _LOGGER = logging.getLogger(__name__)
@@ -212,6 +261,12 @@ def _get_quantity_from_config(cfg: dict) -> float:
     except (TypeError, ValueError):
         return 0.0
 
+def _get_invest_from_config(cfg: dict) -> float:
+    try:
+        qf = float(cfg.get(CONF_INVEST, DEFAULT_INVEST))
+        return qf if qf >= 0 else 0.0
+    except (TypeError, ValueError):
+        return 0.0
 
 def _get_name_from_config(cfg: dict) -> str:
     try:
@@ -227,7 +282,6 @@ def _get_name_from_config(cfg: dict) -> str:
         _LOGGER.debug(f"_get_name_from_config(): caused {type(ex).__name__} - {ex}")
 
     return None
-
 
 def _get_price_source_to_use_key_from_config(config_entry: ConfigEntry, key, default) -> str:
     price_source_to_use = config_entry.data.get(key, default)
@@ -248,6 +302,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     for isin in isins:
         cfg_for_isin = isin_configs.get(isin, {})
         quantity = _get_quantity_from_config(cfg_for_isin)
+        invest = _get_invest_from_config(cfg_for_isin)
         display_name = _get_name_from_config(cfg_for_isin) or isin
 
         for a_stub in SENSOR_STUBS:
@@ -263,12 +318,21 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
         if quantity > 0:
             for a_stub in VALUE_SENSOR_STUBS:
+                if a_stub.tag == Tag.POSITIONDEVELOPMENT and invest <= 0.0:
+                    continue
+
                 a_stub = replace(a_stub,
                                  quantity=quantity,
+                                 invest=invest,
                                  price_source_to_use=price_source_to_use_for_position_key,
                                  )
                 sensors.append(JustETFBaseEntity(isin=isin, isin_name=display_name, coordinator=coordinator, description=a_stub))
 
+    # should ve create global portfolio sensors... ?!
+    if len(isins) > 1:
+        # creating overall portfolio sensors...
+        for a_stub in PORTFOLIO_SENSORS_STUB:
+            sensors.append(JustETFPortfolioEntity(coordinator=coordinator, description=a_stub))
 
     async_add_entities(sensors, False)
 
@@ -321,106 +385,17 @@ class CustomFriendlyNameEntity(CoordinatorEntity):
         return result
 
 
-class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
+class JustETFCoreEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
 
     _attr_has_entity_name = True
 
-    def __init__(self, isin:str, isin_name:str, coordinator: JustETFDataUpdateCoordinator, description: ExtSensorEntityDescription) -> None:
+    def __init__(self, coordinator: JustETFDataUpdateCoordinator, description: ExtSensorEntityDescription) -> None:
         super().__init__(coordinator, description)
-
-        # this is our MAIN identifier...
-        self.tag = description.tag
-        self.isin = isin
-        self._isin_name = isin_name
-
-        if hasattr(description, "translation_key") and description.translation_key is not None:
-            self._attr_translation_key = description.translation_key.lower()
-        else:
-            self._attr_translation_key = description.key.lower()
-
-        self.entity_description: ExtSensorEntityDescription = description
-        self.coordinator = coordinator
-        self.entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{camel_to_snake(description.key)}".lower()
 
     async def async_added_to_hass(self):
         """Connect to a dispatcher listening for entity data notifications."""
         self.async_on_remove(self.coordinator.async_add_listener(self.async_write_ha_state))
         await super().async_added_to_hass()
-
-    @property
-    def device_info(self) -> dict:
-        return {
-            "identifiers": {(DOMAIN, self.isin)},
-            "name": self._isin_name or self.isin,
-            "manufacturer": MANUFACTURER,
-            "model": self.isin
-        }
-
-    @property
-    def available(self):
-        """Return True if the entity is available."""
-        return self.coordinator.last_update_success and self.coordinator.data is not None and self.isin in self.coordinator.data
-
-    @property
-    def unique_id(self):
-        """Return a unique ID to use for this entity."""
-        return f"{DOMAIN}.jetfuid_{self.entity_id.split('.')[1]}".lower()
-
-    @property
-    def native_value(self):
-        try:
-            if self.coordinator.data is not None:
-                data = self.coordinator.data.get(self.isin, {})
-                if self.tag.keys is not None:
-                    key1 = self.tag.keys[0]
-                    key2 = self.tag.keys[1]
-                    return data.get(key1, {}).get(key2, None)
-                else:
-                    if self.tag == Tag.POSITIONVALUE:
-                        val = data.get(self.entity_description.price_source_to_use, None)
-                    elif self.tag in (Tag.CHANGEDAYPOSITIONVALUE, Tag.CHANGEMONTHPOSITIONVALUE):
-                        # we need the DAY/MONTH change amount value (to be able to calculate the position value)
-                        if self.tag == Tag.CHANGEDAYPOSITIONVALUE:
-                            a_entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{camel_to_snake(Tag.CHANGEDAYAMT.key)}".lower()
-                        else:
-                            a_entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{camel_to_snake(Tag.CHANGEMONTHAMT.key)}".lower()
-
-                        price_change_amount_state = self.hass.states.get(a_entity_id)
-                        if price_change_amount_state is None or price_change_amount_state.state in INVALID_STATES:
-                            return None
-                        try:
-                            val = float(price_change_amount_state.state)
-                        except (TypeError, ValueError):
-                            return None
-                        #_LOGGER.debug(f"Retrieved price change amount for {self.tag.key} with isin {self.isin}: {val}")
-                    else:
-                        val = data.get(self.tag.key, None)
-
-                    if val is not None and self.entity_description.quantity is not None:
-                        val = float(val) * self.entity_description.quantity
-
-                    return val
-
-        except BaseException as ex:
-            _LOGGER.info(f"native_value(): Error fetching native value for {self.tag.key} with isin {self.isin}: {type(ex).__name__} - {ex}")
-
-        return None
-
-    @property
-    def icon(self) -> str | None:
-        if self.tag in (Tag.DTDPRC, Tag.DTDAMT, Tag.DTDDEC):
-            if self.coordinator.data is not None:
-                v = self.coordinator.data.get(self.isin, {}).get(self.tag.key, None)
-                if v is None:
-                    return "mdi:trending-neutral"
-                if v > 0:
-                    return "mdi:trending-up"
-                if v < 0:
-                    return "mdi:trending-down"
-
-            return "mdi:trending-neutral"
-        else:
-            return super().icon
 
     def _name_internal(self, device_class_name: str | None, platform_translations: dict[str, Any]) -> str | UndefinedType | None:
         # no need to "optional" patch internal (we might like to insert here the base currency later)
@@ -457,6 +432,151 @@ class JustETFBaseEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
             return f"{device_entry.name_by_user} {name}" if device_name else name
         else:
             return name
+
+
+class JustETFPortfolioEntity(JustETFCoreEntity):
+
+    def __init__(self, coordinator: JustETFDataUpdateCoordinator, description: ExtSensorEntityDescription) -> None:
+        super().__init__(coordinator, description)
+
+        # this is our MAIN identifier...
+        self.tag = description.tag
+
+        if hasattr(description, "translation_key") and description.translation_key is not None:
+            self._attr_translation_key = description.translation_key.lower()
+        else:
+            self._attr_translation_key = description.key.lower()
+
+        self.entity_description: ExtSensorEntityDescription = description
+        self.coordinator = coordinator
+        self.entity_id = f"{Platform.SENSOR}.jetf_portfolio_{camel_to_snake(description.key)}".lower()
+
+    @property
+    def available(self):
+        """Return True if the entity is available."""
+        return self.coordinator.last_update_success and self.coordinator.data is not None
+
+    @property
+    def device_info(self) -> dict:
+        return {
+            "identifiers": {(DOMAIN, self.coordinator._config_entry.entry_id)},
+            "name": "ETF Portfolio",
+            "manufacturer": MANUFACTURER
+        }
+
+    @property
+    def unique_id(self):
+        """Return a unique ID to use for this entity."""
+        return f"{DOMAIN}.jetfuid_portfolio_{camel_to_snake(self.entity_description.key)}".lower()
+
+    @property
+    def native_value(self):
+        try:
+            if hasattr(self.tag, "attribute"):
+                return getattr(self.coordinator, self.tag.attribute)
+
+        except BaseException as ex:
+            _LOGGER.info(f"JustETFPortfolioEntity:native_value(): Error fetching native value for {self.tag.key}: {type(ex).__name__} - {ex}")
+
+        return None
+
+
+class JustETFBaseEntity(JustETFCoreEntity):
+
+    def __init__(self, isin:str, isin_name:str, coordinator: JustETFDataUpdateCoordinator, description: ExtSensorEntityDescription) -> None:
+        super().__init__(coordinator, description)
+
+        # this is our MAIN identifier...
+        self.tag = description.tag
+        self.isin = isin
+        self._isin_name = isin_name
+
+        if hasattr(description, "translation_key") and description.translation_key is not None:
+            self._attr_translation_key = description.translation_key.lower()
+        else:
+            self._attr_translation_key = description.key.lower()
+
+        self.entity_description: ExtSensorEntityDescription = description
+        self.coordinator = coordinator
+        self.entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{camel_to_snake(description.key)}".lower()
+
+    @property
+    def available(self):
+        """Return True if the entity is available."""
+        return self.coordinator.last_update_success and self.coordinator.data is not None and self.isin in self.coordinator.data
+
+    @property
+    def device_info(self) -> dict:
+        return {
+            "identifiers": {(DOMAIN, self.isin)},
+            "name": self._isin_name or self.isin,
+            "manufacturer": MANUFACTURER,
+            "model": self.isin
+        }
+
+    @property
+    def unique_id(self):
+        """Return a unique ID to use for this entity."""
+        return f"{DOMAIN}.jetfuid_{self.entity_id.split('.')[1]}".lower()
+
+    @property
+    def native_value(self):
+        try:
+            if self.coordinator.data is not None:
+                data = self.coordinator.data.get(self.isin, {})
+                if self.tag.keys is not None:
+                    key1 = self.tag.keys[0]
+                    key2 = self.tag.keys[1]
+                    return data.get(key1, {}).get(key2, None)
+                else:
+                    if self.tag == Tag.POSITIONVALUE or self.tag == Tag.POSITIONDEVELOPMENT:
+                        val = data.get(self.entity_description.price_source_to_use, None)
+
+                    elif self.tag in (Tag.CHANGEDAYPOSITIONVALUE, Tag.CHANGEMONTHPOSITIONVALUE):
+                        # we need the DAY/MONTH change amount value (to be able to calculate the position value)
+                        if self.tag == Tag.CHANGEDAYPOSITIONVALUE:
+                            a_entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{camel_to_snake(Tag.CHANGEDAYAMT.key)}".lower()
+                        else:
+                            a_entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{camel_to_snake(Tag.CHANGEMONTHAMT.key)}".lower()
+
+                        price_change_amount_state = self.hass.states.get(a_entity_id)
+                        if price_change_amount_state is None or price_change_amount_state.state in INVALID_STATES:
+                            return None
+                        try:
+                            val = float(price_change_amount_state.state)
+                        except (TypeError, ValueError):
+                            return None
+                        #_LOGGER.debug(f"Retrieved price change amount for {self.tag.key} with isin {self.isin}: {val}")
+                    else:
+                        val = data.get(self.tag.key, None)
+
+                    if val is not None and self.entity_description.quantity is not None:
+                        val = float(val) * self.entity_description.quantity
+                        if self.tag == Tag.POSITIONDEVELOPMENT and self.entity_description.invest is not None and self.entity_description.invest > 0:
+                            val = val - self.entity_description.invest
+
+                    return val
+
+        except BaseException as ex:
+            _LOGGER.info(f"native_value(): Error fetching native value for {self.tag.key} with isin {self.isin}: {type(ex).__name__} - {ex}")
+
+        return None
+
+    @property
+    def icon(self) -> str | None:
+        if self.tag in (Tag.DTDPRC, Tag.DTDAMT, Tag.DTDDEC):
+            if self.coordinator.data is not None:
+                v = self.coordinator.data.get(self.isin, {}).get(self.tag.key, None)
+                if v is None:
+                    return "mdi:trending-neutral"
+                if v > 0:
+                    return "mdi:trending-up"
+                if v < 0:
+                    return "mdi:trending-down"
+
+            return "mdi:trending-neutral"
+        else:
+            return super().icon
 
 
 class JustETFSnapshotValueEntity(JustETFBaseEntity):

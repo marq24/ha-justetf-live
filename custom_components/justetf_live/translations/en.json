@@ -10,7 +10,8 @@
           "scan_interval": "Update interval (minutes)",
           "position_value_price": "Price used for positions value calculation",
           "day_month_start_price": "Price for the day & month start values",
-          "quantity": "Quantity (shares/units)"
+          "quantity": "Quantity (shares/units)",
+          "invest": "Invest in € for the amount of shares above"
         },
         "data_description": {
           "position_value_price": "If you wish to calculate the position value for an ETF, specify the base price per unit. This price is used for the position value calculation.",
@@ -39,7 +40,8 @@
         "data": {
           "isin": "ISIN",
           "name": "Name (optional)",
-          "quantity": "Quantity (your shares/units)"
+          "quantity": "Quantity (your shares/units)",
+          "invest": "Invest in € for the amount of shares above"
         }
       },
       "edit_isin": {
@@ -47,7 +49,8 @@
         "description": "Editing settings for ISIN: **{isin}**",
         "data": {
           "name": "Name (optional)",
-          "quantity": "Quantity (your shares/units)"
+          "quantity": "Quantity (your shares/units)",
+          "invest": "Invest in € for the amount of shares above"
         }
       },
       "delete_isin": {
@@ -90,7 +93,8 @@
       "mid":  { "name": "Price" },
       "bid":  { "name": "Price (bid)" },
       "ask":  { "name": "Price (ask)" },
-      "position_value": { "name": "Positions value" },
+      "position_value": { "name": "Position value" },
+      "position_change": { "name": "Position development" },
       "quote52weeklow": { "name": "52W low" },
       "quote52weekhigh": { "name": "52W high" },
       "start_price_day": { "name": "Day start price" },
@@ -101,7 +105,11 @@
       "change_month_amt": { "name": "Change Month" },
       "change_month_prc": { "name": "Change Month %" },
       "change_month_position_value": { "name": "Change Month value" },
-      "timestamp": { "name": "Last update" }
+      "timestamp": { "name": "Last update" },
+      "total_invest": { "name": "Total Investment" },
+      "total_value": { "name": "Total Value" },
+      "total_change": { "name": "Overall Development" },
+      "total_return": { "name": "Overall Return" }
     }
   }
 }

@@ -10,7 +10,8 @@
           "scan_interval": "Update-Intervall (Minuten)",
           "position_value_price": "Preis für Positionswertberechnung",
           "day_month_start_price": "Preis für Tages- & Monatsstartwerte",
-          "quantity": "Stückzahl (Anteile)"
+          "quantity": "Stückzahl (Anteile)",
+          "invest": "Investition in € für die o.g. Anteile"
         },
         "data_description": {
           "position_value_price": "Wenn Du für einen ETF einen Positions-Wert berechnen möchtest, gib den Basis-Preis für eine Einheit an. Dieser Preis wird für die Positions-Wert-Berechnung verwendet.",
@@ -39,7 +40,8 @@
         "data": {
           "isin": "ISIN",
           "name": "Name (optional)",
-          "quantity": "Stückzahl (Deine Anteile)"
+          "quantity": "Stückzahl (Deine Anteile)",
+          "invest": "Investition in € für die o.g. Anteile"
         }
       },
       "edit_isin": {
@@ -47,7 +49,8 @@
         "description": "Einstellungen für ISIN bearbeiten: **{isin}**",
         "data": {
           "name": "Name (optional)",
-          "quantity": "Stückzahl (Deine Anteile)"
+          "quantity": "Stückzahl (Deine Anteile)",
+          "invest": "Investition in € für die o.g. Anteile"
         }
       },
       "delete_isin": {
@@ -91,6 +94,7 @@
       "dtdprc": { "name": "Änderung Day2Day %" },
       "dtdamt": { "name": "Änderung Day2Day" },
       "position_value": { "name": "Positionswert" },
+      "position_change": { "name": "Positionswert Entwicklung" },
       "quote52weeklow": { "name": "52W Tief" },
       "quote52weekhigh": { "name": "52W Hoch" },
       "start_price_day": { "name": "Startpreis Tag" },
@@ -101,7 +105,11 @@
       "change_month_amt": { "name": "Änderung Monat" },
       "change_month_prc": { "name": "Änderung Monat %" },
       "change_month_position_value": { "name": "Änderung Monat Positionswert" },
-      "timestamp": { "name": "Letztes Update" }
+      "timestamp": { "name": "Letztes Update" },
+      "total_invest": { "name": "Investiertes Kapital" },
+      "total_value": { "name": "Depotwert" },
+      "total_change": { "name": "Depot Entwicklung" },
+      "total_return": { "name": "Depot Rendite" }
     }
   }
 }

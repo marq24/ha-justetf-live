@@ -8,12 +8,13 @@ from typing import Any, Final
 from aiohttp import ClientConnectionError
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
-from homeassistant.core import HomeAssistant, CoreState
+from homeassistant.core import HomeAssistant, CoreState, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import (
     device_registry as device_reg
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.event import async_track_time_interval, async_track_utc_time_change, async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.update_coordinator import UpdateFailed
@@ -24,7 +25,11 @@ from custom_components.justetf_live.const import (
     CONF_ISINS,
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
-    STARTUP_MESSAGE, MANUFACTURER,
+    STARTUP_MESSAGE,
+    MANUFACTURER,
+    CONF_ISIN_CONFIG,
+    CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE,
+    DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE
 )
 from custom_components.justetf_live.pyjustetflive_ha import JustETFBridge, STOCK_EXCHANGE_TZ
 from custom_components.justetf_live.pyjustetflive_ha.const import TRANSLATIONS
@@ -174,7 +179,76 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
         self._ws_data_update_notify_interval_in_seconds = 1
 
         update_interval = timedelta(minutes=config_entry.data.get(CONF_SCAN_INTERVAL, 5))
+
+        # calculating the overall investment for the whole portfolio...
+        isin_configs: dict[str, dict] = config_entry.data.get(CONF_ISIN_CONFIG, {})
+
+        self.invested_isins = {}
+        self.price_to_use = config_entry.data.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE, DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE)
+
+        self.total_invest: float= 0.0
+        self.total_value: float= 0.0
+        self.total_change: float= 0.0
+        self.total_return: float= 0.0
+
+        for a_isin in isin_configs.keys():
+            if "quantity" not in isin_configs[a_isin]:
+                continue
+            try:
+                quantity = float(isin_configs[a_isin].get("quantity", 0.0))
+                if quantity > 0.0:
+                    self.invested_isins[a_isin] = {"quantity": quantity}
+                    if "invest" not in isin_configs[a_isin]:
+                        continue
+                    invest = float(isin_configs[a_isin].get("invest", 0.0))
+                    if invest > 0.0:
+                        self.total_invest += invest
+                        self.invested_isins[a_isin] = {"quantity": quantity, "invest": invest}
+
+            except Exception as ex:
+                _LOGGER.info(f"__init__(): {a_isin} - {isin_configs[a_isin]} caused: {type(ex).__name__} - {ex}")
+
+        # try:
+        #     self.total_invest: float = sum([float(a_isin_config.get("invest", 0.0)) for a_isin_config in isin_configs.values()])
+        # except Exception as ex:
+        #     self.total_invest = 0.0
+        #     _LOGGER.info(f"__init__(): could not calculate overall investment: {type(ex).__name__} - {ex}")
+
         super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=update_interval)
+
+        @callback
+        def global_data_update_listener() -> None:
+            """Logic to execute when the coordinator updates."""
+            self.total_return = None
+            self.total_value = None
+            self.total_change = None
+
+            if self.data is not None:
+                self.total_value = 0.0
+                self.total_change = -self.total_invest
+
+                for a_isin in self.invested_isins.keys():
+                    if a_isin not in self.data:
+                        continue
+
+                    a_isin_quantity = self.invested_isins[a_isin].get("quantity", 0.0)
+                    a_isin_value = self.data.get(a_isin, {})
+                    if self.price_to_use in a_isin_value:
+                        position_value = float(a_isin_value[self.price_to_use]) * a_isin_quantity
+                        self.total_value += position_value
+
+                        a_isin_invest = self.invested_isins[a_isin].get("invest", 0.0)
+                        if a_isin_invest > 0.0:
+                            self.total_change += position_value
+
+                if self.total_value > 0.0:
+                    self.total_return = self.total_change / self.total_value * 100.0
+
+                # we calculate the current values OF ALL ISIN's
+                _LOGGER.debug("Coordinator data has updated: %s", self.total_value)
+
+
+        self.unsub = self.async_add_listener(global_data_update_listener)
 
     async def call_later_update_device_registry(self, now:Any):
         _LOGGER.debug(f"call_later_update_device_registry(): called with '{now}'")
@@ -235,6 +309,7 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
             minute=range(0, 60, 5),
             second = random.randint(10, 49)
         )
+
 
     async def _async_check_watchdog_interval(self, *_):
         _LOGGER.debug("_async_check_watchdog_interval()")
