@@ -1,5 +1,6 @@
 
 import asyncio
+import copy
 import logging
 import random
 from datetime import datetime, timedelta
@@ -52,6 +53,11 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
         hass.data.setdefault(DOMAIN, {"manifest_version": intg_version})
 
     coordinator = JustETFDataUpdateCoordinator(hass, config_entry)
+    backup_key = f"BACKUP_{config_entry.entry_id}"
+    if backup_key in hass.data[DOMAIN]:
+        coordinator.init_bridge(hass.data[DOMAIN][backup_key])
+        hass.data[DOMAIN].pop(backup_key)
+
     await coordinator.async_refresh()
     if not coordinator.last_update_success:
         raise ConfigEntryNotReady
@@ -90,6 +96,8 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
         if DOMAIN in hass.data and config_entry.entry_id in hass.data[DOMAIN]:
             coordinator: JustETFDataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
             coordinator.stop_watchdog()
+            # creating a local backup of the data (so we have faster restarts)...
+            hass.data[DOMAIN][f"BACKUP_{config_entry.entry_id}"] = copy.deepcopy(coordinator.bridge.get_backup_data())
             coordinator.clear_data()
             hass.data[DOMAIN].pop(config_entry.entry_id)
 
@@ -234,11 +242,11 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
                     a_isin_quantity = self.invested_isins[a_isin].get("quantity", 0.0)
                     a_isin_value = self.data.get(a_isin, {})
                     if self.price_to_use in a_isin_value:
-                        position_value = float(a_isin_value[self.price_to_use]) * a_isin_quantity
-                        self.total_value += position_value
 
                         a_isin_invest = self.invested_isins[a_isin].get("invest", 0.0)
                         if a_isin_invest > 0.0:
+                            position_value = float(a_isin_value[self.price_to_use]) * a_isin_quantity
+                            self.total_value += position_value
                             self.total_change += position_value
 
                 if self.total_value > 0.0:
@@ -247,8 +255,13 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
                 # we calculate the current values OF ALL ISIN's
                 _LOGGER.debug("Coordinator data has updated: %s", self.total_value)
 
-
         self.unsub = self.async_add_listener(global_data_update_listener)
+
+
+    def init_bridge(self, backup_data:dict):
+        _LOGGER.debug(f"init_bridge(): will restore previous data... {backup_data}")
+        self.bridge.init_bridge(backup_data)
+
 
     async def call_later_update_device_registry(self, now:Any):
         _LOGGER.debug(f"call_later_update_device_registry(): called with '{now}'")

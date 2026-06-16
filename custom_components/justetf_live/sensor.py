@@ -304,7 +304,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
         quantity = _get_quantity_from_config(cfg_for_isin)
         invest = _get_invest_from_config(cfg_for_isin)
         display_name = _get_name_from_config(cfg_for_isin) or isin
-
+        _LOGGER.info(f"Creating sensors for isin {isin}, quantity:{quantity}, invested: {invest}")
         for a_stub in SENSOR_STUBS:
             sensors.append(JustETFBaseEntity(isin=isin, isin_name=display_name, coordinator=coordinator, description=a_stub))
 
