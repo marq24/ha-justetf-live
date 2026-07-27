@@ -3,6 +3,7 @@ import logging
 from dataclasses import dataclass, replace
 from datetime import datetime, time, timezone, timedelta
 from typing import Final, Any
+from collections import deque
 
 from awesomeversion import AwesomeVersion
 from homeassistant.components.recorder import get_instance
@@ -594,7 +595,9 @@ class JustETFSnapshotValueEntity(JustETFBaseEntity):
         self._snapshot_period_id: str | None = None
         self._snapshot_captured_at: str | None = None
         self._snapshot_update_task: asyncio.Task | None = None
-
+        # a queue object that only keeps the last 65 values... we use this as cache, so that we do not retry
+        # to fetch the history of our snapshot sensors, if there are NO history data for the given period...
+        self._snapshot_skipp_list = deque(maxlen=65)
         if hasattr(description, "price_source_to_use") and description.price_source_to_use is not None:
             self._price_source_entity_id = f"{Platform.SENSOR}.jetf_{self.isin}_{description.price_source_to_use}".lower()
             self._period_id_key = f"{description.price_source_to_use}"
@@ -648,9 +651,7 @@ class JustETFSnapshotValueEntity(JustETFBaseEntity):
         if self._snapshot_update_task is not None and not self._snapshot_update_task.done():
             return
 
-        self._snapshot_update_task = self.hass.async_create_task(
-            self._async_update_snapshot_from_history_if_needed()
-        )
+        self._snapshot_update_task = self.hass.async_create_task(self._async_update_snapshot_from_history_if_needed())
 
     def _snapshot_needs_update(self) -> bool:
         now_utc = datetime.now(timezone.utc)
@@ -663,13 +664,18 @@ class JustETFSnapshotValueEntity(JustETFBaseEntity):
             self._snapshot_period_id != period_id or self._snapshot_value is None
         )
 
-    async def _async_update_snapshot_from_history_if_needed(self) -> None:
+    async def _async_update_snapshot_from_history_if_needed(self) -> None|str:
         now_utc = datetime.now(timezone.utc)
         target = self._target_period_for_now(now_utc)
         if target is None:
             return
 
         period_id, period_start_utc = target
+
+        # when we have process this lookup - but there was no history data...
+        if period_id in self._snapshot_skipp_list:
+            return
+
         if self._snapshot_period_id == period_id and self._snapshot_value is not None:
             return
 
@@ -717,11 +723,15 @@ class JustETFSnapshotValueEntity(JustETFBaseEntity):
                 selected_distance = distance
 
         if selected_state is None:
+            _LOGGER.debug(f"_async_update_snapshot_from_history_if_needed(): selected_state is None! - going to ignore {period_id} - states: '{states}', history: '{history}'")
+            self._snapshot_skipp_list.append(period_id)
             return
 
         try:
             a_value = float(selected_state.state)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as ex:
+            _LOGGER.debug(f"_async_update_snapshot_from_history_if_needed(): failed to convert state {selected_state.state} to float: {type(ex).__name__} - going to ignore {period_id} - {ex}")
+            self._snapshot_skipp_list.append(period_id)
             return
 
         changed = selected_state.last_changed

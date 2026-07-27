@@ -26,11 +26,14 @@ from custom_components.justetf_live.const import (
     CONF_ISINS,
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
+    CONF_DATA_UPDATE_INTERVAL,
+    DEFAULT_DATA_UPDATE_INTERVAL,
     STARTUP_MESSAGE,
     MANUFACTURER,
     CONF_ISIN_CONFIG,
     CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE,
-    DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE
+    DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE,
+
 )
 from custom_components.justetf_live.pyjustetflive_ha import JustETFBridge, STOCK_EXCHANGE_TZ
 from custom_components.justetf_live.pyjustetflive_ha.const import TRANSLATIONS
@@ -185,15 +188,6 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
 
         self.name = config_entry.title
 
-        # if config_entry.data.get(CONF_DELAY, False):
-        #     self._ws_data_update_notify_interval_in_seconds = SCAN_INTERVAL.seconds
-        # else:
-        #     # minimum update interval - no matter how fast the websocket will push the
-        #     # data, we only update HA only every second...
-        #     self._ws_data_update_notify_interval_in_seconds = 1
-        self._ws_data_update_notify_interval_in_seconds = 1
-
-        update_interval = timedelta(minutes=config_entry.data.get(CONF_SCAN_INTERVAL, 5))
 
         # calculating the overall investment for the whole portfolio...
         isin_configs: dict[str, dict] = config_entry.data.get(CONF_ISIN_CONFIG, {})
@@ -229,6 +223,12 @@ class JustETFDataUpdateCoordinator(DataUpdateCoordinator):
         # except Exception as ex:
         #     self.total_invest = 0.0
         #     _LOGGER.info(f"__init__(): could not calculate overall investment: {type(ex).__name__} - {ex}")
+
+        # in which frequency the data coordinator will be notified for data updates of the webservice!
+        self._ws_data_update_notify_interval_in_seconds: Final = config_entry.data.get(CONF_DATA_UPDATE_INTERVAL, 5)
+
+        # the scan interval (when the websocket is not running)
+        update_interval = timedelta(minutes=config_entry.data.get(CONF_SCAN_INTERVAL, 5))
 
         super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=update_interval)
 

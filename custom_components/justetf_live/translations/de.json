@@ -7,7 +7,8 @@
         "data": {
           "isin": "ISIN",
           "name": "Name (optional)",
-          "scan_interval": "Update-Intervall (Minuten)",
+          "scan_interval": "Datenabrufintervall (Minuten)",
+          "data_update_interval": "HA-Sensor Aktualisierungsintervall (Sekunden: 60=1min, 300=5min, 3600=1h)",
           "position_value_price": "Preis für Positionswertberechnung",
           "day_month_start_price": "Preis für Tages- & Monatsstartwerte",
           "quantity": "Stückzahl (Anteile)",
@@ -16,7 +17,8 @@
         "data_description": {
           "position_value_price": "Wenn Du für einen ETF einen Positions-Wert berechnen möchtest, gib den Basis-Preis für eine Einheit an. Dieser Preis wird für die Positions-Wert-Berechnung verwendet.",
           "day_month_start_price": "Dieser Preis wird für die Berechnung der Tages- und Monatsstartwerte verwendet.",
-          "scan_interval": "Das Aktualisierungsintervall spielt normalerweise keine Rolle, da diese Integration eine WebSocket verbindung verwendet. Sollte diese Verbindung allerdings für eine längere Zeit ausfallen, greift das Aktualisierungsintervall."
+          "scan_interval": "Das Datenabrufintervall spielt normalerweise keine Rolle, da diese Integration eine WebSocket-Verbindung verwendet. Sollte diese Verbindung allerdings für eine längere Zeit ausfallen, greift das Datenabrufintervall.",
+          "data_update_interval": "Das HA-Sensor Aktualisierungsintervall kann sich auf die Gesamtperformance Deiner HA installation auswirken (wenn Du ein sehr kleines Interval auswählst). Wenn Du 1 Sekunde auswählst, werden die Daten sobald diese über den WebSocket enpfangen werden auch an die HA Sensoren übermittelt. Ich (marq24) empfehle Dir 10 Sekunden oder meher zu verwenden."
         }
       },
       "select_isin": {
@@ -24,14 +26,16 @@
         "description": "Wähle eine ISIN zum Bearbeiten oder füge eine neue hinzu.",
         "data": {
           "selected_isin": "Wähle eine Option",
-          "scan_interval": "Update-Intervall (Minuten)",
+          "scan_interval": "Datenabruf-Intervall (Minuten)",
+          "data_update_interval": "HA-Sensor Aktualisierungsintervall (Sekunden: 60=1min, 300=5min, 3600=1h)",
           "position_value_price": "Preis für Positionswertberechnung",
           "day_month_start_price": "Preis für Tages- & Monatsstartwerte"
         },
         "data_description": {
           "position_value_price": "Wenn Du für einen ETF einen Positions-Wert berechnen möchtest, gib den Basis-Preis für eine Einheit an. Dieser Preis wird für die Positions-Wert-Berechnung verwendet.",
           "day_month_start_price": "Dieser Preis wird für die Berechnung der Tages- und Monatsstartwerte verwendet.",
-          "scan_interval": "Das Aktualisierungsintervall spielt normalerweise keine Rolle, da diese Integration eine WebSocket verbindung verwendet. Sollte diese Verbindung allerdings für eine längere Zeit ausfallen, greift das Aktualisierungsintervall."
+          "scan_interval": "Das Datenabrufintervall spielt normalerweise keine Rolle, da diese Integration eine WebSocket-Verbindung verwendet. Sollte diese Verbindung allerdings für eine längere Zeit ausfallen, greift das Datenabrufintervall.",
+          "data_update_interval": "Das HA-Sensor Aktualisierungsintervall kann sich auf die Gesamtperformance Deiner HA installation auswirken (wenn Du ein sehr kleines Interval auswählst). Wenn Du 1 Sekunde auswählst, werden die Daten sobald diese über den WebSocket enpfangen werden auch an die HA Sensoren übermittelt. Ich (marq24) empfehle Dir 10 Sekunden oder meher zu verwenden."
         }
       },
       "add_isin": {

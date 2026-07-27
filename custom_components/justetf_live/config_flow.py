@@ -21,6 +21,7 @@ from custom_components.justetf_live.const import (
     CONF_ISIN_CONFIG,
     CONF_NAME,
     CONF_SCAN_INTERVAL,
+    CONF_DATA_UPDATE_INTERVAL,
     CONF_QUANTITY,
     CONF_INVEST,
     CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE,
@@ -31,6 +32,7 @@ from custom_components.justetf_live.const import (
     DELETE_ISIN,
     SAVE_AND_CLOSE,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_DATA_UPDATE_INTERVAL,
     DEFAULT_QUANTITY,
     DEFAULT_INVEST,
     DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE,
@@ -99,6 +101,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             isin = user_input[CONF_ISIN].strip().upper()
             name = (user_input.get(CONF_NAME) or "").strip()
             scan_interval = int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+            update_interval = int(user_input.get(CONF_DATA_UPDATE_INTERVAL, DEFAULT_DATA_UPDATE_INTERVAL))
             quantity = float(user_input.get(CONF_QUANTITY, DEFAULT_QUANTITY))
             invest = float(user_input.get(CONF_INVEST, DEFAULT_INVEST))
             start_value_price = _get_valid_source_value_price(user_input.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START))
@@ -113,6 +116,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title="justETF live",
                     data={
                         CONF_SCAN_INTERVAL: scan_interval,
+                        CONF_DATA_UPDATE_INTERVAL: update_interval,
                         CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START: start_value_price,
                         CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE: position_value_price,
                         CONF_ISINS: [isin],
@@ -137,6 +141,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START, default=DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START): await _async_position_value_price_selector(self.hass),
                 vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE, default=DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE): await _async_position_value_price_selector(self.hass),
                 vol.Required(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(int, vol.Range(min=1, max=360)),
+                vol.Required(CONF_DATA_UPDATE_INTERVAL, default=DEFAULT_DATA_UPDATE_INTERVAL): vol.All(int, vol.Range(min=1, max=3600)),
                 vol.Optional(CONF_QUANTITY, default=DEFAULT_QUANTITY): vol.All(vol.Coerce(float), vol.Range(min=0)),
                 vol.Optional(CONF_INVEST, default=DEFAULT_INVEST): vol.All(vol.Coerce(float), vol.Range(min=0)),
             }),
@@ -192,6 +197,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is None:
             current_scan = int(entry_data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+            current_update = int(entry_data.get(CONF_DATA_UPDATE_INTERVAL, DEFAULT_DATA_UPDATE_INTERVAL))
             current_start_value_price = _get_valid_source_value_price(entry_data.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START))
             current_position_value_price = _get_valid_source_value_price(entry_data.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE))
             return self.async_show_form(
@@ -205,21 +211,25 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START, default=current_start_value_price): await _async_position_value_price_selector(self.hass),
                     vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE, default=current_position_value_price): await _async_position_value_price_selector(self.hass),
                     vol.Required(CONF_SCAN_INTERVAL, default=current_scan): vol.All(int, vol.Range(min=1, max=360)),
+                    vol.Required(CONF_DATA_UPDATE_INTERVAL, default=current_update): vol.All(int, vol.Range(min=1, max=3600)),
                 }),
             )
 
         # Save potentially updated global options (reconfigure only)
         if self._is_reconfigure and CONF_SCAN_INTERVAL in user_input:
             new_scan = int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+            new_update_interval = int(user_input.get(CONF_DATA_UPDATE_INTERVAL, DEFAULT_DATA_UPDATE_INTERVAL))
             new_start_value_price = _get_valid_source_value_price(user_input.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START))
             new_position_value_price = _get_valid_source_value_price(user_input.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE))
             if (
                     new_scan != int(entry_data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+                    or new_update_interval != int(entry_data.get(CONF_DATA_UPDATE_INTERVAL, DEFAULT_DATA_UPDATE_INTERVAL))
                     or new_start_value_price != _get_valid_source_value_price(entry_data.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START))
                     or new_position_value_price != _get_valid_source_value_price(entry_data.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE))
             ):
                 new_data = dict(entry_data)
                 new_data[CONF_SCAN_INTERVAL] = new_scan
+                new_data[CONF_DATA_UPDATE_INTERVAL] = new_update_interval
                 new_data[CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START] = new_start_value_price
                 new_data[CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE] = new_position_value_price
 

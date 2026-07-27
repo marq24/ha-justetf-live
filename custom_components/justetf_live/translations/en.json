@@ -7,7 +7,8 @@
         "data": {
           "isin": "ISIN",
           "name": "Name (optional)",
-          "scan_interval": "Update interval (minutes)",
+          "scan_interval": "Data retrival interval (minutes)",
+          "data_update_interval": "HA-Sensor update interval (seconds: 60=1min, 300=5min, 3600=1h)",
           "position_value_price": "Price used for positions value calculation",
           "day_month_start_price": "Price for the day & month start values",
           "quantity": "Quantity (shares/units)",
@@ -16,7 +17,8 @@
         "data_description": {
           "position_value_price": "If you wish to calculate the position value for an ETF, specify the base price per unit. This price is used for the position value calculation.",
           "day_month_start_price": "This price is used for the calculation of the day & month start values.",
-          "scan_interval": "The update interval typically does not matter, as this integration uses a WebSocket connection. However, should this connection fail for an extended period, the update interval will take effect."
+          "scan_interval": "The data retrival interval typically does not matter, as this integration uses a WebSocket connection. However, should this connection fail for an extended period, the data retrival interval will take effect.",
+          "data_update_interval": "The HA-Sensor update interval can have negative impact on the overall performance of your HA system (if you select a quite low interval). If you select 1 second, the data will be shown in HA as soon as they arrive via the WebSocket connection. I (marq24) do recommend to use 10sec or higher."
         }
       },
       "select_isin": {
@@ -24,14 +26,16 @@
         "description": "Select an ISIN to edit or add a new one.",
         "data": {
           "selected_isin": "Select your action",
-          "scan_interval": "Update interval (minutes)",
+          "scan_interval": "Data retrival interval (minutes)",
+          "data_update_interval": "HA-Sensor update interval (seconds: 60=1min, 300=5min, 3600=1h)",
           "position_value_price": "Price used for positions value",
           "day_month_start_price": "Price for the day & month start values"
         },
         "data_description": {
           "position_value_price": "If you wish to calculate the position value for an ETF, specify the base price per unit. This price is used for the position value calculation.",
           "day_month_start_price": "This price is used for the calculation of the day & month start values.",
-          "scan_interval": "The update interval typically does not matter, as this integration uses a WebSocket connection. However, should this connection fail for an extended period, the update interval will take effect."
+          "scan_interval": "The data retrival interval typically does not matter, as this integration uses a WebSocket connection. However, should this connection fail for an extended period, the data retrival interval will take effect.",
+          "data_update_interval": "The HA-Sensor update interval can have negative impact on the overall performance of your HA system (if you select a quite low interval). If you select 1 second, the data will be shown in HA as soon as they arrive via the WebSocket connection. I (marq24) do recommend to use 10sec or higher."
         }
       },
       "add_isin": {

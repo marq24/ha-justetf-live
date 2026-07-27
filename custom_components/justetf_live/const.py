@@ -7,6 +7,7 @@ CONF_ISINS = "isins"
 CONF_ISIN_CONFIG = "isin_config"
 CONF_NAME = "name"
 CONF_SCAN_INTERVAL = "scan_interval"
+CONF_DATA_UPDATE_INTERVAL = "data_update_interval"
 CONF_QUANTITY = "quantity"
 CONF_INVEST = "invest"
 CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE = "position_value_price"
@@ -21,6 +22,7 @@ DELETE_ISIN = "__delete_isin__"
 SAVE_AND_CLOSE = "__save_close__"
 
 DEFAULT_SCAN_INTERVAL = 15
+DEFAULT_DATA_UPDATE_INTERVAL = 30
 DEFAULT_QUANTITY = 0.0  # 0 = deaktiviert/kein Positionswert
 DEFAULT_INVEST = 0.0  # 0 = deaktiviert/kein investierter €
 DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE = "bid"

@@ -2,8 +2,8 @@ import asyncio
 import json
 import logging
 import random
+import time
 from datetime import date, datetime, timezone
-from time import time
 from typing import Final
 from zoneinfo import ZoneInfo
 
@@ -112,7 +112,7 @@ class JustETFBridge:
 
     async def read_all(self) -> dict:
         now_date = datetime.now(timezone.utc).date()
-        now_time = time()
+        now_time = time.time()
 
         is_next_day = (now_date != self._DETAILS_RUN_DATE)
 
@@ -121,7 +121,7 @@ class JustETFBridge:
         are_24_hours_passed = ((self._DETAILS_LAST_UPDATE + 86400 + random.randint(-3600, 3600))  < now_time)
 
         if is_next_day or are_24_hours_passed:
-            self._details_data = await self._read_all_details()
+            self._details_data = await asyncio.create_task(self._read_all_details())
             self._DETAILS_LAST_UPDATE = now_time
             self._DETAILS_RUN_DATE = now_date
 
@@ -214,8 +214,8 @@ class JustETFBridge:
 
     def ws_check_last_update(self) -> bool:
         # we expect at least every 60-second data from the websocket...
-        if (self._ws_LAST_UPDATE + 60) > time():
-            _LOGGER.debug(f"ws_check_last_update(): all good! [last update: {int(time()-self._ws_LAST_UPDATE)} sec ago]")
+        if (self._ws_LAST_UPDATE + 60) > time.time():
+            _LOGGER.debug(f"ws_check_last_update(): all good! [last update: {int(time.time()-self._ws_LAST_UPDATE)} sec ago]")
             return True
         else:
             if self.is_out_of_stock_exchange_operating_hours():
@@ -245,18 +245,23 @@ class JustETFBridge:
             self._ws_debounced_update_task.cancel()
 
         async def _ws_debounce_coordinator_update():
-            await asyncio.sleep(0.2)
-            if hasattr(self, "coordinator") and self.coordinator is not None:
-                current_time = time()
-                if current_time - self._ws_LAST_NEW_DATA_NOTIFY >= self.coordinator._ws_data_update_notify_interval_in_seconds:
-                    self._ws_LAST_NEW_DATA_NOTIFY = current_time
+            if hasattr(self, "coordinator"):
+                # sleeping before we notify for updated data
+                if self.coordinator is not None:
+                    elapsed = time.time() - self._ws_LAST_NEW_DATA_NOTIFY
+                    if elapsed < self.coordinator._ws_data_update_notify_interval_in_seconds:
+                        sec_to_sleep = self.coordinator._ws_data_update_notify_interval_in_seconds - elapsed
+                        _LOGGER.debug(f"_ws_debounce_coordinator_update(): sleeping for {sec_to_sleep} seconds before notifying for updated data")
+                        await asyncio.sleep(sec_to_sleep)
+                    else:
+                        await asyncio.sleep(0.2)
+
+                if self.coordinator is not None:
                     self.coordinator.async_set_updated_data(self._ws_data)
+                    self._ws_LAST_NEW_DATA_NOTIFY = time.time()
                 else:
-                    _LOGGER.debug(f"_ws_debounce_coordinator_update(): skip 'self.coordinator.async_set_updated_data'")
+                    #_LOGGER.debug(f"_ws_debounce_coordinator_update(): coordinator is None or not initialized")
                     pass
-            else:
-                #_LOGGER.debug(f"_ws_debounce_coordinator_update(): coordinator is None or not initialized")
-                pass
 
         self._ws_debounced_update_task = asyncio.create_task(_ws_debounce_coordinator_update())
 
@@ -264,7 +269,7 @@ class JustETFBridge:
         """Connect to WebSocket with full authentication and message handling"""
         _LOGGER.debug(f"ws_connect() STARTED...")
         self.ws_connected = False
-        self._ws_connect_start_time = time()
+        self._ws_connect_start_time = time.time()
 
         if self.ws_url is None:
             _LOGGER.warning("ws_connect(): WebSocket URL not configured")
@@ -275,7 +280,7 @@ class JustETFBridge:
         # make sure we have some high/low 52 week data...
         if not self._details_data and len(self._details_data) == 0:
             self._details_data = await self._read_all_details(do_quick=True)
-            self._DETAILS_LAST_UPDATE = time()
+            self._DETAILS_LAST_UPDATE = time.time()
 
         # finally, establish out websocket connection - look like that there is no message limit
         # at the backend side - no clue why the regular web access stops after ~1000 received
@@ -310,7 +315,7 @@ class JustETFBridge:
                     # Notify coordinator if new data arrived
                     if new_data_arrived:
                         # Store the last time we heard from the websocket
-                        self._ws_LAST_UPDATE = time()
+                        self._ws_LAST_UPDATE = time.time()
                         self._ws_notify_for_new_data()
 
         except aiohttp.ClientConnectionError as err:
@@ -324,7 +329,7 @@ class JustETFBridge:
 
         max_key = max(self._ws_message_count, key=self._ws_message_count.get)
         max_value = self._ws_message_count[max_key]
-        duration = int(time() - self._ws_connect_start_time)
+        duration = int(time.time() - self._ws_connect_start_time)
         hours = duration // 3600
         minutes = (duration % 3600) // 60
 
