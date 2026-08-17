@@ -340,10 +340,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
 class CustomFriendlyNameEntity(CoordinatorEntity):
 
-    def __init__(self, *args, **kwargs):
-        """Initialize and check if method exists."""
-        super().__init__(*args, **kwargs)
-
     # This is a SYNCHRONOUS method that returns a tuple, not async!
     def _Entity__async_calculate_state(self):
         """Calculate state and override ATTR_FRIENDLY_NAME."""
@@ -391,7 +387,7 @@ class JustETFCoreEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
     _attr_has_entity_name = True
 
     def __init__(self, coordinator: JustETFDataUpdateCoordinator, description: ExtSensorEntityDescription) -> None:
-        super().__init__(coordinator, description)
+        super().__init__(coordinator)
 
     async def async_added_to_hass(self):
         """Connect to a dispatcher listening for entity data notifications."""
