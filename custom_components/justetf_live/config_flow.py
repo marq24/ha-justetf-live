@@ -280,7 +280,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         to_delete = user_input[CONF_SELECTED_ISIN]
         device_reg = dr.async_get(self.hass)
         entity_reg = er.async_get(self.hass)
-        device = device_reg.async_get_device({(DOMAIN, to_delete)}, set())
+
+        if hasattr(device_reg, "async_get_device_by_identifier"):
+            device = device_reg.async_get_device_by_identifier(identifier=(DOMAIN, to_delete), config_entry_id=self._existing_entry.entry_id)
+        else:
+            device = device_reg.async_get_device({(DOMAIN, to_delete)}, set())
+
         if device is not None:
             for ent in er.async_entries_for_device(
                 entity_reg, device.id, include_disabled_entities=True
