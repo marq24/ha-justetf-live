@@ -11,12 +11,15 @@ _LOGGER: logging.Logger = logging.getLogger(__package__)
 
 CC_P1: Final = re.compile(r"(.)([A-Z][a-z]+)")
 CC_P2: Final = re.compile(r"([a-z0-9])([A-Z])")
+NON_ALNUM_P: Final = re.compile(r"[^\w]+")
 
 def camel_to_snake(a_key: str):
+    a_key = NON_ALNUM_P.sub("_", a_key)
     if a_key.lower().endswith("kwh"):
         a_key = a_key[:-3] + "_kwh"
     a_key = re.sub(CC_P1, r'\1_\2', a_key)
-    return re.sub(CC_P2, r'\1_\2', a_key).lower()
+    a_key = re.sub(CC_P2, r'\1_\2', a_key).lower()
+    return re.sub(r"_+", "_", a_key).strip("_")
 
 
 class ApiKey(NamedTuple):
