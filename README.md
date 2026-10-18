@@ -1,4 +1,4 @@
-# justETF live Integration for Home Assistant [Realtime ETF stock data via WebSocket]
+# <sub><img src="https://raw.githubusercontent.com/marq24/ha-justetf-live/main/custom_components/justetf_live/brand/icon.png" style="align:bottom;height:42px;"></sub> justETF live Integration for Home Assistant [Realtime ETF stock data via WebSocket]
 <!--
 > [!NOTE]  
 > Highlights information that users should take into account, even when skimming.
