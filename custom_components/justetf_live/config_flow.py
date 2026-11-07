@@ -1,11 +1,13 @@
 import logging
 from typing import Any
 
-import voluptuous as vol
+import probatio
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
+from homeassistant.const import UnitOfTime
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers import selector
 from homeassistant.helpers.selector import (
     SelectOptionDict,
     SelectSelector,
@@ -135,16 +137,51 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema({
-                vol.Required(CONF_ISIN): str,
-                vol.Optional(CONF_NAME, default=""): str,
-                vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START, default=DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START): await _async_position_value_price_selector(self.hass),
-                vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE, default=DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE): await _async_position_value_price_selector(self.hass),
-                vol.Required(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(int, vol.Range(min=1, max=360)),
-                vol.Required(CONF_DATA_UPDATE_INTERVAL, default=DEFAULT_DATA_UPDATE_INTERVAL): vol.All(int, vol.Range(min=1, max=3600)),
-                vol.Optional(CONF_QUANTITY, default=DEFAULT_QUANTITY): vol.All(vol.Coerce(float), vol.Range(min=0)),
-                vol.Optional(CONF_INVEST, default=DEFAULT_INVEST): vol.All(vol.Coerce(float), vol.Range(min=0)),
-            }),
+            data_schema=self.add_suggested_values_to_schema(
+                probatio.Schema({
+                    probatio.Required(CONF_ISIN):
+                        selector.TextSelector(),
+                    probatio.Optional(CONF_NAME):
+                        selector.TextSelector(),
+                    probatio.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START):
+                        await _async_position_value_price_selector(self.hass),
+                    probatio.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE):
+                        await _async_position_value_price_selector(self.hass),
+                    probatio.Required(CONF_SCAN_INTERVAL):
+                        selector.NumberSelector(selector.NumberSelectorConfig(
+                            step=1,
+                            min=1,
+                            max=360,
+                            unit_of_measurement=UnitOfTime.MINUTES,
+                            mode=selector.NumberSelectorMode.BOX)),
+                    probatio.Required(CONF_DATA_UPDATE_INTERVAL):
+                        selector.NumberSelector(selector.NumberSelectorConfig(
+                            step=1,
+                            min=1,
+                            max=3600,
+                            unit_of_measurement=UnitOfTime.SECONDS,
+                            mode=selector.NumberSelectorMode.BOX)),
+                    probatio.Optional(CONF_QUANTITY):
+                        selector.NumberSelector(selector.NumberSelectorConfig(
+                            min=0,
+                            step=0.01,
+                            mode=selector.NumberSelectorMode.BOX)),
+                    probatio.Optional(CONF_INVEST):
+                        selector.NumberSelector(selector.NumberSelectorConfig(
+                            min=0,
+                            step=0.01,
+                            mode=selector.NumberSelectorMode.BOX)),
+                }),
+                {
+                    CONF_NAME: "",
+                    CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START: DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START,
+                    CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE: DEFAULT_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE,
+                    CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL,
+                    CONF_DATA_UPDATE_INTERVAL: DEFAULT_DATA_UPDATE_INTERVAL,
+                    CONF_QUANTITY: DEFAULT_QUANTITY,
+                    CONF_INVEST: DEFAULT_INVEST,
+                },
+            ),
             errors=errors,
         )
 
@@ -202,17 +239,37 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             current_position_value_price = _get_valid_source_value_price(entry_data.get(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE))
             return self.async_show_form(
                 step_id="select_isin",
-                data_schema=vol.Schema({
-                    vol.Required(CONF_SELECTED_ISIN): SelectSelector(
-                        SelectSelectorConfig(
-                            options=options,
-                            mode=SelectSelectorMode.LIST if len(options) < 15 else SelectSelectorMode.DROPDOWN
-                        )),
-                    vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START, default=current_start_value_price): await _async_position_value_price_selector(self.hass),
-                    vol.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE, default=current_position_value_price): await _async_position_value_price_selector(self.hass),
-                    vol.Required(CONF_SCAN_INTERVAL, default=current_scan): vol.All(int, vol.Range(min=1, max=360)),
-                    vol.Required(CONF_DATA_UPDATE_INTERVAL, default=current_update): vol.All(int, vol.Range(min=1, max=3600)),
-                }),
+                data_schema=self.add_suggested_values_to_schema(
+                    probatio.Schema({
+                        probatio.Required(CONF_SELECTED_ISIN):
+                            SelectSelector(SelectSelectorConfig(
+                                options=options,
+                                mode=SelectSelectorMode.LIST if len(options) < 15 else SelectSelectorMode.DROPDOWN
+                            )),
+                        probatio.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START):
+                            await _async_position_value_price_selector(self.hass),
+                        probatio.Required(CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE):
+                            await _async_position_value_price_selector(self.hass),
+                        probatio.Required(CONF_SCAN_INTERVAL):
+                            selector.NumberSelector(selector.NumberSelectorConfig(
+                                min=1,
+                                max=360,
+                                step=1,
+                                mode=selector.NumberSelectorMode.BOX)),
+                        probatio.Required(CONF_DATA_UPDATE_INTERVAL):
+                            selector.NumberSelector(selector.NumberSelectorConfig(
+                                min=1,
+                                max=3600,
+                                step=1,
+                                mode=selector.NumberSelectorMode.BOX)),
+                    }),
+                    {
+                        CONF_PRICE_TO_USE_AS_SOURCE_FOR_DAY_MONTH_START: current_start_value_price,
+                        CONF_PRICE_TO_USE_AS_SOURCE_FOR_POSITION_VALUE: current_position_value_price,
+                        CONF_SCAN_INTERVAL: current_scan,
+                        CONF_DATA_UPDATE_INTERVAL: current_update,
+                    },
+                ),
             )
 
         # Save potentially updated global options (reconfigure only)
@@ -272,8 +329,15 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is None:
             return self.async_show_form(
                 step_id="delete_isin",
-                data_schema=vol.Schema({
-                    vol.Required(CONF_SELECTED_ISIN): vol.In(options),
+                data_schema=probatio.Schema({
+                    probatio.Required(CONF_SELECTED_ISIN):
+                        selector.SelectSelector(selector.SelectSelectorConfig(
+                            options=[
+                                SelectOptionDict(value=isin, label=label)
+                                for isin, label in options.items()
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN)
+                    )
                 }),
             )
 
@@ -287,9 +351,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             device = device_reg.async_get_device({(DOMAIN, to_delete)}, set())
 
         if device is not None:
-            for ent in er.async_entries_for_device(
-                entity_reg, device.id, include_disabled_entities=True
-            ):
+            for ent in er.async_entries_for_device(entity_reg, device.id, include_disabled_entities=True):
                 entity_reg.async_remove(ent.entity_id)
             device_reg.async_remove_device(device.id)
 
@@ -348,12 +410,29 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="add_isin",
-            data_schema=vol.Schema({
-                vol.Required(CONF_ISIN): str,
-                vol.Optional(CONF_NAME, default=""): str,
-                vol.Optional(CONF_QUANTITY, default=DEFAULT_QUANTITY): vol.All(vol.Coerce(float), vol.Range(min=0)),
-                vol.Optional(CONF_INVEST, default=DEFAULT_INVEST): vol.All(vol.Coerce(float), vol.Range(min=0)),
-            }),
+            data_schema=self.add_suggested_values_to_schema(
+                probatio.Schema({
+                    probatio.Required(CONF_ISIN):
+                        selector.TextSelector(),
+                    probatio.Optional(CONF_NAME):
+                        selector.TextSelector(),
+                    probatio.Optional(CONF_QUANTITY):
+                        selector.NumberSelector(selector.NumberSelectorConfig(
+                            min=0,
+                            step=0.01,
+                            mode=selector.NumberSelectorMode.BOX)),
+                    probatio.Optional(CONF_INVEST):
+                        selector.NumberSelector(selector.NumberSelectorConfig(
+                            min=0,
+                            step=0.01,
+                            mode=selector.NumberSelectorMode.BOX)),
+                }),
+                {
+                    CONF_NAME: "",
+                    CONF_QUANTITY: DEFAULT_QUANTITY,
+                    CONF_INVEST: DEFAULT_INVEST,
+                },
+            ),
             errors=errors,
         )
 
@@ -390,11 +469,27 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="edit_isin",
-            data_schema=vol.Schema({
-                vol.Optional(CONF_NAME, default=cfg.get(CONF_NAME, "")): str,
-                vol.Optional(CONF_QUANTITY, default=float(cfg.get(CONF_QUANTITY, DEFAULT_QUANTITY)),): vol.All(vol.Coerce(float), vol.Range(min=0)),
-                vol.Optional(CONF_INVEST, default=float(cfg.get(CONF_INVEST, DEFAULT_INVEST)),): vol.All(vol.Coerce(float), vol.Range(min=0)),
-            }),
+            data_schema=self.add_suggested_values_to_schema(
+                probatio.Schema({
+                    probatio.Optional(CONF_NAME):
+                        selector.TextSelector(),
+                    probatio.Optional(CONF_QUANTITY):
+                        selector.NumberSelector(selector.NumberSelectorConfig(
+                            min=0,
+                            step=0.01,
+                            mode=selector.NumberSelectorMode.BOX)),
+                    probatio.Optional(CONF_INVEST):
+                        selector.NumberSelector(selector.NumberSelectorConfig(
+                            min=0,
+                            step=0.01,
+                            mode=selector.NumberSelectorMode.BOX)),
+                }),
+                {
+                    CONF_NAME: cfg.get(CONF_NAME, ""),
+                    CONF_QUANTITY: float(cfg.get(CONF_QUANTITY, DEFAULT_QUANTITY)),
+                    CONF_INVEST: float(cfg.get(CONF_INVEST, DEFAULT_INVEST)),
+                },
+            ),
             description_placeholders={CONF_ISIN: isin},
         )
 
