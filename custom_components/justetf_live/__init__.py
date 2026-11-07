@@ -88,6 +88,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
 
     config_entry.async_on_unload(config_entry.add_update_listener(entry_update_listener))
     # ok we are done...
+    _LOGGER.info(f"async_setup_entry(): integration setup complete for {config_entry.entry_id}")
     return True
 
 
