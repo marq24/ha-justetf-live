@@ -81,6 +81,15 @@ Please note that some of the available sensors are __not__ enabled by default.
 
 __Enjoying this integration?__ ⭐ Star the repo!
 
+---
+
+## Contributing
+
+Bug reports, technical findings and contributions are welcome.
+
+Before opening a feature request or pull request, please read my [contribution guidelines](CONTRIBUTING.md).
+
+
 [hacs]: https://hacs.xyz
 [hacsbadge]: https://img.shields.io/badge/HACS-custom-orange.svg?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=ccc
 
