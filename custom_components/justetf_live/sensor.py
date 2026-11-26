@@ -18,7 +18,7 @@ from homeassistant.const import EntityCategory, ATTR_FRIENDLY_NAME, __version__ 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
-from homeassistant.helpers.typing import UNDEFINED, UndefinedType
+from homeassistant.helpers.typing import UNDEFINED
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from custom_components.justetf_live.pyjustetflive_ha.keys import Tag, camel_to_snake
@@ -394,7 +394,7 @@ class JustETFCoreEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
         self.async_on_remove(self.coordinator.async_add_listener(self.async_write_ha_state))
         await super().async_added_to_hass()
 
-    def _name_internal(self, device_class_name: str | None, platform_translations: dict[str, Any]) -> str | UndefinedType | None:
+    def _name_internal(self, device_class_name: str | None, platform_translations: dict[str, Any], ) -> str | None:
         # no need to "optional" patch internal (we might like to insert here the base currency later)
         return super()._name_internal(device_class_name, platform_translations)
 
