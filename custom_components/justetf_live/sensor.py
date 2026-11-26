@@ -18,8 +18,11 @@ from homeassistant.const import EntityCategory, ATTR_FRIENDLY_NAME, __version__ 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
-from homeassistant.helpers.typing import UNDEFINED
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+try:
+    from homeassistant.helpers.typing import Undefined as HA_UNDEFINED  # type: ignore[attr-defined]
+except ImportError:
+    from homeassistant.helpers.typing import UNDEFINED as HA_UNDEFINED
 
 from custom_components.justetf_live.pyjustetflive_ha.keys import Tag, camel_to_snake
 from . import JustETFDataUpdateCoordinator
@@ -404,7 +407,7 @@ class JustETFCoreEntity(CustomFriendlyNameEntity, SensorEntity, RestoreEntity):
         If has_entity_name is True, this returns device.name + self.name
         """
         name = self.name
-        if name is UNDEFINED:
+        if name is HA_UNDEFINED:
             name = None
 
         if not self.has_entity_name or not (device_entry := self.device_entry):
